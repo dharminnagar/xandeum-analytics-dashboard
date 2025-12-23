@@ -34,8 +34,8 @@ model SystemMetrics {
 // Pods table - tracks all known pods
 model Pod {
   id        Int      @id @default(autoincrement())
-  pubkey    String?  @unique @db.VarChar(255)
-  address   String   @db.VarChar(255)
+  pubkey    String?  @db.VarChar(255)
+  address   String   @unique @db.VarChar(255)
   rpcPort   Int?     @map("rpc_port")
   version   String   @db.VarChar(100)
   isPublic  Boolean? @map("is_public")
@@ -46,7 +46,6 @@ model Pod {
   metrics PodMetricsHistory[]
 
   @@index([pubkey])
-  @@index([address])
   @@map("pods")
 }
 
