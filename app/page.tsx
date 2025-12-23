@@ -217,6 +217,9 @@ export default async function Home() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Uptime
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -267,6 +270,16 @@ export default async function Home() {
                           {pod.uptime
                             ? `${pod.uptime.toLocaleString()}s`
                             : "N/A"}
+                        </td>
+                        <td className="px-6 py-4 text-sm">
+                          <a
+                            href={`/api/pods/${encodeURIComponent(pod.address)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                          >
+                            View Details
+                          </a>
                         </td>
                       </tr>
                     ))}

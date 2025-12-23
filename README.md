@@ -114,6 +114,12 @@ Open [http://localhost:3000](http://localhost:3000)
 - `POST /api/pods` - Get current pods from Xandeum network
 - `POST /api/system/stats` - Get current system stats
 
+### Individual Pod Data
+
+- `GET /api/pods/[address]` - Get specific pod details with metrics history
+  - Supports both address and pubkey as the parameter
+  - Returns pod info, live data (if available), and historical metrics
+
 ### Snapshots (Save to DB)
 
 - `POST /api/pods/snapshot` - Fetch and save pods data

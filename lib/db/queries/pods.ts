@@ -134,6 +134,25 @@ export async function getPodsWithLatestMetrics() {
 }
 
 /**
+ * Get a single pod by address or pubkey
+ */
+export async function getPodByAddressOrPubkey(addressOrPubkey: string) {
+  return await prisma.pod.findFirst({
+    where: {
+      OR: [{ address: addressOrPubkey }, { pubkey: addressOrPubkey }],
+    },
+    include: {
+      metrics: {
+        orderBy: {
+          timestamp: "desc",
+        },
+        take: 1, // Include latest metric
+      },
+    },
+  });
+}
+
+/**
  * Delete old pod metrics (older than 90 days)
  */
 export async function cleanupOldPodMetrics() {
