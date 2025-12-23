@@ -3,8 +3,6 @@ import { APIStatsResponse } from "@/types/stats";
 import { saveSystemMetrics } from "@/lib/db/queries/system-metrics";
 
 export async function POST(request: Request) {
-  console.log("System Stats Snapshot API: Starting request");
-
   // Check authentication
   const authHeader = request.headers.get("authorization");
   const expectedSecret = process.env.SNAPSHOT_SECRET;
@@ -17,11 +15,8 @@ export async function POST(request: Request) {
   }
 
   if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
-    console.log("Authentication failed");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  console.log("Authentication successful");
 
   try {
     // Call the existing /api/system/stats endpoint
@@ -51,7 +46,6 @@ export async function POST(request: Request) {
     // Save to database
     try {
       await saveSystemMetrics(data.stats.result);
-      console.log("System metrics saved to database");
     } catch (dbError) {
       console.error("Failed to save system metrics:", dbError);
       // Continue even if DB save fails

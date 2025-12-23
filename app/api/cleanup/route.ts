@@ -17,22 +17,15 @@ export async function POST(request: Request) {
   }
 
   if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
-    console.log("Authentication failed");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log("Authentication successful");
-
   try {
-    console.log("Starting data cleanup (90-day retention)...");
-
     // Cleanup old system metrics
     const systemMetricsResult = await cleanupOldSystemMetrics();
-    console.log(`Deleted ${systemMetricsResult.count} old system metrics`);
 
     // Cleanup old pod metrics
     const podMetricsResult = await cleanupOldPodMetrics();
-    console.log(`Deleted ${podMetricsResult.count} old pod metrics`);
 
     return NextResponse.json({
       success: true,

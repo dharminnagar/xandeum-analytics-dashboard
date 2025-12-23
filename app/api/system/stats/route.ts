@@ -4,11 +4,7 @@ import { sendRequest } from "@/lib/sendRequest";
 import { PodResponse } from "@/types/stats";
 
 export async function POST() {
-  console.log("System Stats API: Starting request");
-
   for (const endpoint of XANDEUM_ENDPOINTS) {
-    console.log(`System Stats API: Endpoint ${endpoint}`);
-
     try {
       const request = {
         jsonrpc: "2.0",

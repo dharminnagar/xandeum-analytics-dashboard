@@ -2,14 +2,9 @@ import { NextResponse } from "next/server";
 import { XANDEUM_ENDPOINTS } from "@/config/endpoints";
 import { sendRequest } from "@/lib/sendRequest";
 import { Stats } from "@/types/nodes";
-import fs from "fs";
 
 export async function POST() {
-  console.log("Pods API: Starting request");
-
   for (const endpoint of XANDEUM_ENDPOINTS) {
-    console.log(`Pods API: Endpoint ${endpoint}`);
-
     try {
       const request = {
         jsonrpc: "2.0",
@@ -24,7 +19,6 @@ export async function POST() {
 
       if (response) {
         const data: Stats = JSON.parse(response);
-        fs.writeFileSync("api_pods_response.json", JSON.stringify(data));
         return NextResponse.json(data);
       }
     } catch (e) {
