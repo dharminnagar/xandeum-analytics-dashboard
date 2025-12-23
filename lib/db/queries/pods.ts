@@ -5,50 +5,18 @@ import { Pod as PodType } from "@/types/nodes";
  * Upsert a pod (create if doesn't exist, update if exists)
  */
 export async function upsertPod(pod: PodType) {
-  // If pod has pubkey, use it as unique identifier
-  if (pod.pubkey) {
-    return await prisma.pod.upsert({
-      where: { pubkey: pod.pubkey },
-      update: {
-        address: pod.address,
-        rpcPort: pod.rpc_port,
-        version: pod.version,
-        isPublic: pod.is_public,
-        updatedAt: new Date(),
-      },
-      create: {
-        pubkey: pod.pubkey,
-        address: pod.address,
-        rpcPort: pod.rpc_port,
-        version: pod.version,
-        isPublic: pod.is_public,
-      },
-    });
-  }
-
-  // If no pubkey, find by address or create new
-  const existing = await prisma.pod.findFirst({
-    where: {
-      pubkey: null,
-      address: pod.address,
+  // Address is the unique key so we persist every distinct endpoint even if pubkeys repeat
+  return await prisma.pod.upsert({
+    where: { address: pod.address },
+    update: {
+      pubkey: pod.pubkey ?? null,
+      rpcPort: pod.rpc_port,
+      version: pod.version,
+      isPublic: pod.is_public,
+      updatedAt: new Date(),
     },
-  });
-
-  if (existing) {
-    return await prisma.pod.update({
-      where: { id: existing.id },
-      data: {
-        rpcPort: pod.rpc_port,
-        version: pod.version,
-        isPublic: pod.is_public,
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  return await prisma.pod.create({
-    data: {
-      pubkey: null,
+    create: {
+      pubkey: pod.pubkey ?? null,
       address: pod.address,
       rpcPort: pod.rpc_port,
       version: pod.version,
