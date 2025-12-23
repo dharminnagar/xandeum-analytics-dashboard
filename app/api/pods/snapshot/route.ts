@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { APINodesWithStatsResponse } from "@/types/nodes";
 import { upsertPod, savePodMetrics } from "@/lib/db/queries/pods";
+import prisma from "@/lib/db/prisma";
 
 export async function POST(request: Request) {
   const logs: string[] = [];
@@ -60,7 +61,35 @@ export async function POST(request: Request) {
     );
     try {
       let savedCount = 0;
+      let deletedCount = 0;
       const errors: string[] = [];
+
+      // Get all current addresses from API
+      const apiAddresses = new Set(
+        data.stats.result.pods.map((pod) => pod.address)
+      );
+
+      // Get all addresses from database
+      const dbPods = await prisma.pod.findMany({
+        select: { id: true, address: true },
+      });
+
+      // Find pods in DB but not in API (offline/old pods)
+      const podsToDelete = dbPods.filter(
+        (pod) => !apiAddresses.has(pod.address)
+      );
+
+      // Delete offline pods
+      if (podsToDelete.length > 0) {
+        logs.push(`Deleting ${podsToDelete.length} offline pods`);
+        for (const pod of podsToDelete) {
+          await prisma.pod.delete({ where: { id: pod.id } });
+          deletedCount++;
+          logs.push(`Deleted offline pod: ${pod.address}`);
+        }
+      }
+
+      // Upsert all current pods
       for (const pod of data.stats.result.pods) {
         try {
           // Upsert the pod
@@ -81,10 +110,11 @@ export async function POST(request: Request) {
       logs.push(
         `Successfully saved ${savedCount}/${data.stats.result.pods.length} pods to database`
       );
+      logs.push(`Deleted ${deletedCount} offline pods`);
 
       return NextResponse.json({
         ...data,
-        dbSave: { savedCount, errors, logs },
+        dbSave: { savedCount, deletedCount, errors, logs },
       });
     } catch (dbError) {
       const errorMsg = `Failed to save pods: ${dbError instanceof Error ? dbError.message : String(dbError)}`;
