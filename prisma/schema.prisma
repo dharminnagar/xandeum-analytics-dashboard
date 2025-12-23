@@ -1,0 +1,72 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// System-wide metrics snapshots (taken every minute)
+model SystemMetrics {
+  id               Int      @id @default(autoincrement())
+  timestamp        DateTime @db.Timestamptz()
+  activeStreams    Int      @map("active_streams")
+  cpuPercent       Decimal  @map("cpu_percent") @db.Decimal(10, 6)
+  ramUsed          BigInt   @map("ram_used")
+  ramTotal         BigInt   @map("ram_total")
+  packetsReceived  BigInt   @map("packets_received")
+  packetsSent      BigInt   @map("packets_sent")
+  uptime           Int
+  currentIndex     Int      @map("current_index")
+  fileSize         BigInt   @map("file_size")
+  totalBytes       BigInt   @map("total_bytes")
+  totalPages       Int      @map("total_pages")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([timestamp])
+  @@index([createdAt])
+  @@map("system_metrics")
+}
+
+// Pods table - tracks all known pods
+model Pod {
+  id        Int      @id @default(autoincrement())
+  pubkey    String?  @unique @db.VarChar(255)
+  address   String   @db.VarChar(255)
+  rpcPort   Int?     @map("rpc_port")
+  version   String   @db.VarChar(100)
+  isPublic  Boolean? @map("is_public")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  // Relationship to metrics history
+  metrics PodMetricsHistory[]
+
+  @@index([pubkey])
+  @@index([address])
+  @@map("pods")
+}
+
+// Historical metrics for each pod (taken every minute)
+model PodMetricsHistory {
+  id                   Int      @id @default(autoincrement())
+  podId                Int      @map("pod_id")
+  timestamp            DateTime @db.Timestamptz()
+  storageUsed          BigInt?  @map("storage_used")
+  storageCommitted     BigInt?  @map("storage_committed")
+  storageUsagePercent  Decimal? @map("storage_usage_percent") @db.Decimal(10, 6)
+  uptime               Int?
+  lastSeenTimestamp    BigInt   @map("last_seen_timestamp")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  // Relationship to pod
+  pod Pod @relation(fields: [podId], references: [id], onDelete: Cascade)
+
+  @@index([podId])
+  @@index([timestamp])
+  @@index([createdAt])
+  @@map("pod_metrics_history")
+}
