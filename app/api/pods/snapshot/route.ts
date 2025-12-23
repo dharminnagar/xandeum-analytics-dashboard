@@ -2,9 +2,27 @@ import { NextResponse } from "next/server";
 import { APINodesWithStatsResponse } from "@/types/nodes";
 import { upsertPod, savePodMetrics } from "@/lib/db/queries/pods";
 
-export async function POST() {
+export async function POST(request: Request) {
   const logs: string[] = [];
   logs.push("Pods Snapshot API: Starting request");
+
+  // Check authentication
+  const authHeader = request.headers.get("authorization");
+  const expectedSecret = process.env.SNAPSHOT_SECRET;
+
+  if (!expectedSecret) {
+    return NextResponse.json(
+      { error: "SNAPSHOT_SECRET not configured", logs },
+      { status: 500 }
+    );
+  }
+
+  if (!authHeader || authHeader !== `Bearer ${expectedSecret}`) {
+    logs.push("Authentication failed");
+    return NextResponse.json({ error: "Unauthorized", logs }, { status: 401 });
+  }
+
+  logs.push("Authentication successful");
 
   try {
     // Call the existing /api/pods endpoint

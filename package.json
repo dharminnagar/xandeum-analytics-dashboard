@@ -13,7 +13,11 @@
     "db:migrate": "prisma migrate dev",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "snapshot:pods": "curl -X POST http://localhost:3000/api/pods/snapshot -H 'Authorization: Bearer '${SNAPSHOT_SECRET:-dev-secret}",
+    "snapshot:stats": "curl -X POST http://localhost:3000/api/system/stats/snapshot -H 'Authorization: Bearer '${SNAPSHOT_SECRET:-dev-secret}",
+    "snapshot:all": "npm run snapshot:pods && npm run snapshot:stats",
+    "cleanup": "curl -X POST http://localhost:3000/api/cleanup -H 'Authorization: Bearer '${SNAPSHOT_SECRET:-dev-secret}"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",

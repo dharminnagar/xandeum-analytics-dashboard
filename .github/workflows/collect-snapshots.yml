@@ -1,0 +1,37 @@
+name: Collect Data Snapshots
+
+on:
+  schedule:
+    # Run every 1 minutes
+    - cron: '*/1 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  collect-snapshots:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Collect Pods Snapshot
+        run: |
+          echo "Collecting pods snapshot..."
+          curl -X POST "${{ secrets.API_URL }}/api/pods/snapshot" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SNAPSHOT_SECRET }}" \
+            --fail-with-body \
+            --show-error \
+            || echo "Pods snapshot failed"
+      
+      - name: Collect System Stats Snapshot
+        run: |
+          echo "Collecting system stats snapshot..."
+          curl -X POST "${{ secrets.API_URL }}/api/system/stats/snapshot" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SNAPSHOT_SECRET }}" \
+            --fail-with-body \
+            --show-error \
+            || echo "System stats snapshot failed"
+      
+      - name: Report Status
+        if: always()
+        run: |
+          echo "Snapshot collection completed"

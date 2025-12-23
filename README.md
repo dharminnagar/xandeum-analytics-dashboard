@@ -154,6 +154,55 @@ npx prisma generate
 
 ## Data Collection Setup
 
+The system includes automated data collection via GitHub Actions with secure authentication:
+
+- **Snapshots**: Every 5 minutes (pods + system stats)
+- **Cleanup**: Daily at 2 AM UTC (90-day retention)
+
+### Authentication
+
+All snapshot endpoints are protected with a secret token:
+
+**Local Development:**
+
+```bash
+# Add to .env file
+SNAPSHOT_SECRET=dev-secret
+
+# Scripts automatically include the secret
+npm run snapshot:all
+```
+
+**Production Setup:**
+
+```bash
+# Generate a secure secret
+openssl rand -base64 32
+```
+
+### Quick Start
+
+**Local Testing:**
+
+```bash
+npm run snapshot:all   # Collect both pods and system stats
+npm run snapshot:pods  # Collect pods only
+npm run snapshot:stats # Collect stats only
+npm run cleanup        # Test cleanup
+```
+
+**Production Setup (GitHub Actions):**
+
+1. Go to your GitHub repository settings → Secrets and Variables → Actions
+2. Add secret: `API_URL` (e.g., `https://your-app.vercel.app`)
+3. Add secret: `SNAPSHOT_SECRET` (your generated secure token)
+4. Workflows will run automatically on schedule
+5. Manual trigger: Actions tab → Select workflow → Run workflow
+
+For detailed setup, monitoring, and troubleshooting, see [DATA_COLLECTION.md](./DATA_COLLECTION.md)
+
+## Deployment
+
 To collect historical data, set up automated cron jobs to call the snapshot endpoints every minute.
 
 See [CRON_SETUP.md](./CRON_SETUP.md) for detailed instructions on:
