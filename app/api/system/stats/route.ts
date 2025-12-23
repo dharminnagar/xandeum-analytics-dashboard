@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { XANDEUM_ENDPOINTS } from "@/config/endpoints";
 import { sendRequest } from "@/lib/sendRequest";
-import { Stats } from "@/types/nodes";
+import { PodResponse } from "@/types/stats";
 
 export async function POST() {
-  console.log("Stats API: Starting request");
+  console.log("System Stats API: Starting request");
 
   for (const endpoint of XANDEUM_ENDPOINTS) {
-    console.log(`Stats API: Endpoint ${endpoint}`);
+    console.log(`System Stats API: Endpoint ${endpoint}`);
 
     try {
       const request = {
         jsonrpc: "2.0",
-        method: "get-pods-with-stats",
+        method: "get-stats",
         params: [],
         id: 1,
       };
@@ -22,7 +22,7 @@ export async function POST() {
       );
 
       if (response) {
-        const data: Stats = JSON.parse(response);
+        const data: PodResponse = JSON.parse(response);
         return NextResponse.json(data);
       }
     } catch (e) {
