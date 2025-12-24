@@ -27,9 +27,7 @@ export async function POST(request: Request) {
 
   try {
     // Call the existing /api/pods endpoint
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     logs.push(`Fetching from: ${baseUrl}/api/pods`);
 
     const response = await fetch(`${baseUrl}/api/pods`, {

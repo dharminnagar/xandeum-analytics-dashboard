@@ -20,9 +20,7 @@ export async function POST(request: Request) {
 
   try {
     // Call the existing /api/system/stats endpoint
-    const baseUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const response = await fetch(`${baseUrl}/api/system/stats`, {
       method: "POST",
       cache: "no-store",
