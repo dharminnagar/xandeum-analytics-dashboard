@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Stats as RpcStats } from "@/types/nodes";
 
 type Summary = {
   totalPods: number;
@@ -200,20 +199,20 @@ async function fetchJSON<T>(url: string): Promise<T | null> {
   }
 }
 
-async function fetchJSONWithInit<T>(
-  url: string,
-  init?: RequestInit
-): Promise<T | null> {
-  try {
-    const res = await fetch(url, { cache: "no-store", ...init });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.data ?? data;
-  } catch (err) {
-    console.error("fetch error", url, err);
-    return null;
-  }
-}
+// async function fetchJSONWithInit<T>(
+//   url: string,
+//   init?: RequestInit
+// ): Promise<T | null> {
+//   try {
+//     const res = await fetch(url, { cache: "no-store", ...init });
+//     if (!res.ok) return null;
+//     const data = await res.json();
+//     return data.data ?? data;
+//   } catch (err) {
+//     console.error("fetch error", url, err);
+//     return null;
+//   }
+// }
 
 function extractData<T>(value: WithData<T> | T | null): T | null {
   if (value && typeof value === "object" && "data" in value) {
@@ -229,7 +228,7 @@ export default function Home() {
   const [rankings, setRankings] = useState<RankingResponse | null>(null);
   const [rankingMetric, setRankingMetric] =
     useState<RankingMetric>("storage_committed");
-  const [filterData, setFilterData] = useState<FilterResponse | null>(null);
+  const [allPods, setAllPods] = useState<FilteredPod[]>([]);
   const [filterPage, setFilterPage] = useState(1);
   const [filterSearch, setFilterSearch] = useState("");
   const [filterVersion, setFilterVersion] = useState("");
@@ -237,6 +236,7 @@ export default function Home() {
   const [filterMinStorage, setFilterMinStorage] = useState("");
   const [filterMaxStorage, setFilterMaxStorage] = useState("");
   const [filterMinUptime, setFilterMinUptime] = useState("");
+  const itemsPerPage = 50;
   const [compareInput, setCompareInput] = useState("");
   const [compareData, setCompareData] = useState<CompareResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -251,17 +251,15 @@ export default function Home() {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const [summaryResp, trendResp, rankingResp, rpcPodsResp] =
-        await Promise.all([
-          fetchJSON<Summary>("/api/stats/summary"),
-          fetchJSON<TrendApiResponse | TrendPoint[]>(
-            `/api/stats/trends?period=${trendPeriod}`
-          ),
-          fetchJSON<RankingResponse>(
-            `/api/pods/rankings?metric=${rankingMetric}&limit=10`
-          ),
-          fetchJSONWithInit<RpcStats>("/api/pods", { method: "POST" }),
-        ]);
+      const [summaryResp, trendResp, rankingResp] = await Promise.all([
+        fetchJSON<Summary>("/api/stats/summary"),
+        fetchJSON<TrendApiResponse | TrendPoint[]>(
+          `/api/stats/trends?period=${trendPeriod}`
+        ),
+        fetchJSON<RankingResponse>(
+          `/api/pods/rankings?metric=${rankingMetric}&limit=10`
+        ),
+      ]);
       if (summaryResp) setSummary(summaryResp);
       if (trendResp) {
         if (Array.isArray(trendResp)) {
@@ -281,10 +279,7 @@ export default function Home() {
   useEffect(() => {
     const loadFilter = async () => {
       setFilterLoading(true);
-      const params = new URLSearchParams({
-        page: filterPage.toString(),
-        limit: "10",
-      });
+      const params = new URLSearchParams();
       if (filterSearch) params.set("search", filterSearch);
       if (filterVersion) params.set("version", filterVersion);
       if (filterIsPublic) params.set("isPublic", filterIsPublic);
@@ -296,12 +291,14 @@ export default function Home() {
         WithData<FilterResponse> | FilterResponse
       >(`/api/pods/filter?${params.toString()}`);
       const parsed = extractData(resp);
-      if (parsed) setFilterData(parsed);
+      if (parsed) {
+        setAllPods(parsed.pods);
+        setFilterPage(1); // Reset to first page on filter change
+      }
       setFilterLoading(false);
     };
     loadFilter();
   }, [
-    filterPage,
     filterSearch,
     filterVersion,
     filterIsPublic,
@@ -309,6 +306,24 @@ export default function Home() {
     filterMaxStorage,
     filterMinUptime,
   ]);
+
+  // Client-side pagination
+  const filterData = useMemo(() => {
+    const startIdx = (filterPage - 1) * itemsPerPage;
+    const endIdx = startIdx + itemsPerPage;
+    const paginatedPods = allPods.slice(startIdx, endIdx);
+    const totalPages = Math.ceil(allPods.length / itemsPerPage);
+
+    return {
+      pods: paginatedPods,
+      pagination: {
+        page: filterPage,
+        limit: itemsPerPage,
+        total: allPods.length,
+        totalPages,
+      },
+    };
+  }, [allPods, filterPage, itemsPerPage]);
 
   const handleCompare = async () => {
     if (!compareInput.trim()) return;

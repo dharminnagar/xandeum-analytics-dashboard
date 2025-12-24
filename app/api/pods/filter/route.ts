@@ -6,11 +6,6 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
 
-    // Pagination
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
-    const skip = (page - 1) * limit;
-
     // Filters
     const isPublic = searchParams.get("isPublic");
     const version = searchParams.get("version");
@@ -34,22 +29,17 @@ export async function GET(request: Request) {
       ];
     }
 
-    // Get pods with filters
-    const [pods, total] = await Promise.all([
-      prisma.pod.findMany({
-        where,
-        include: {
-          metrics: {
-            orderBy: { timestamp: "desc" },
-            take: 1,
-          },
+    // Get all pods with filters (no pagination on server)
+    const pods = await prisma.pod.findMany({
+      where,
+      include: {
+        metrics: {
+          orderBy: { timestamp: "desc" },
+          take: 1,
         },
-        skip,
-        take: limit,
-        orderBy: { updatedAt: "desc" },
-      }),
-      prisma.pod.count({ where }),
-    ]);
+      },
+      orderBy: { updatedAt: "desc" },
+    });
 
     // Apply metric-based filters (after fetching latest metrics)
     let filteredPods = pods.filter((p) => p.metrics.length > 0 && p.metrics[0]);
@@ -106,12 +96,7 @@ export async function GET(request: Request) {
       success: true,
       data: {
         pods: results,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
+        total: results.length,
         filters: {
           isPublic,
           version,
