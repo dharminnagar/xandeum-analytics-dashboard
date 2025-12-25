@@ -112,8 +112,8 @@ export async function getHistoricalTrends(period: "24h" | "7d" | "30d") {
     },
   });
 
-  // Group by hour for better visualization
-  const hourlyData: Record<
+  // Group by 5-minute intervals for better visualization
+  const intervalData: Record<
     string,
     {
       timestamp: string;
@@ -127,46 +127,58 @@ export async function getHistoricalTrends(period: "24h" | "7d" | "30d") {
   > = {};
 
   podMetrics.forEach((metric) => {
-    const hourKey = new Date(metric.timestamp).toISOString().slice(0, 13);
-    if (!hourlyData[hourKey]) {
-      hourlyData[hourKey] = {
-        timestamp: hourKey + ":00:00.000Z",
+    const date = new Date(metric.timestamp);
+    // Round down to nearest 5-minute interval
+    const roundedMinutes = Math.floor(date.getMinutes() / 5) * 5;
+    date.setMinutes(roundedMinutes, 0, 0);
+    const intervalKey = date.toISOString();
+
+    if (!intervalData[intervalKey]) {
+      intervalData[intervalKey] = {
+        timestamp: intervalKey,
         podCount: 0,
         totalStorage: 0n,
         usedStorage: 0n,
         avgUptime: 0,
       };
     }
-    hourlyData[hourKey].podCount++;
-    hourlyData[hourKey].totalStorage += metric.storageCommitted || 0n;
-    hourlyData[hourKey].usedStorage += metric.storageUsed || 0n;
-    hourlyData[hourKey].avgUptime += metric.uptime || 0;
+    intervalData[intervalKey].podCount++;
+    intervalData[intervalKey].totalStorage += metric.storageCommitted || 0n;
+    intervalData[intervalKey].usedStorage += metric.storageUsed || 0n;
+    intervalData[intervalKey].avgUptime += metric.uptime || 0;
   });
 
   // Add system metrics
   systemMetrics.forEach((metric) => {
-    const hourKey = new Date(metric.timestamp).toISOString().slice(0, 13);
-    if (hourlyData[hourKey]) {
-      hourlyData[hourKey].systemCpu = Number(metric.cpuPercent);
-      hourlyData[hourKey].systemRam =
+    const date = new Date(metric.timestamp);
+    // Round down to nearest 5-minute interval
+    const roundedMinutes = Math.floor(date.getMinutes() / 5) * 5;
+    date.setMinutes(roundedMinutes, 0, 0);
+    const intervalKey = date.toISOString();
+
+    if (intervalData[intervalKey]) {
+      intervalData[intervalKey].systemCpu = Number(metric.cpuPercent);
+      intervalData[intervalKey].systemRam =
         (Number(metric.ramUsed) / Number(metric.ramTotal)) * 100;
     }
   });
 
   // Convert to array and calculate averages
-  const trends = Object.values(hourlyData).map((hour) => ({
-    timestamp: hour.timestamp,
-    podCount: hour.podCount,
-    totalStorage: hour.totalStorage.toString(),
-    usedStorage: hour.usedStorage.toString(),
+  const trends = Object.values(intervalData).map((interval) => ({
+    timestamp: interval.timestamp,
+    podCount: interval.podCount,
+    totalStorage: interval.totalStorage.toString(),
+    usedStorage: interval.usedStorage.toString(),
     storageUtilization:
-      hour.totalStorage > 0n
-        ? Number((hour.usedStorage * 10000n) / hour.totalStorage) / 100
+      interval.totalStorage > 0n
+        ? Number((interval.usedStorage * 10000n) / interval.totalStorage) / 100
         : 0,
     avgUptime:
-      hour.podCount > 0 ? Math.floor(hour.avgUptime / hour.podCount) : 0,
-    systemCpu: hour.systemCpu,
-    systemRam: hour.systemRam,
+      interval.podCount > 0
+        ? Math.floor(interval.avgUptime / interval.podCount)
+        : 0,
+    systemCpu: interval.systemCpu,
+    systemRam: interval.systemRam,
   }));
 
   return {
