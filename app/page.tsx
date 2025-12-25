@@ -995,7 +995,8 @@ export default function Home() {
                         key={item.rank}
                         className="hover:bg-muted/50 cursor-pointer"
                         onClick={() => {
-                          window.location.href = `/node/${encodeURIComponent(item.address)}`;
+                          const identifier = item.pubkey || item.address;
+                          window.location.href = `/node/${encodeURIComponent(identifier)}`;
                         }}
                       >
                         <TableCell className="font-medium">
@@ -1693,7 +1694,7 @@ export default function Home() {
         </section>
 
         {/* Footer */}
-        <footer className="mt-16 border-t border-border pt-8 pb-12">
+        <footer className="mt-12 border-t border-border pt-8 pb-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Image
