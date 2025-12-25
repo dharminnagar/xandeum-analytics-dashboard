@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ModeToggle } from "@/components/ui/mode-toggle";
 
 type Summary = {
   totalPods: number;
@@ -146,8 +147,17 @@ type CompareChartRow = {
   timestamp: string;
 } & Record<string, number | string>;
 
-const accent = "#2563eb";
-const neutral = "#1f2937";
+// Helper to get computed CSS color values
+const getCSSColor = (variable: string): string => {
+  if (typeof window === "undefined") return "#3b82f6";
+  const root = document.documentElement;
+  const value = getComputedStyle(root).getPropertyValue(variable).trim();
+  // If it's an oklch value, convert it to a usable format
+  if (value.startsWith("oklch")) {
+    return value.replace(/^oklch\((.*)\)$/, "oklch($1)");
+  }
+  return value || "#3b82f6";
+};
 
 const formatBytes = (value: string | number | null) => {
   if (!value && value !== 0) return "N/A";
@@ -242,6 +252,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
+
+  // Get theme-aware chart colors
+  const chartColors = useMemo(
+    () => ({
+      primary: getCSSColor("--chart-1"),
+      secondary: getCSSColor("--chart-2"),
+      tertiary: getCSSColor("--chart-3"),
+    }),
+    []
+  );
 
   const trendData = useMemo(
     () => (Array.isArray(trends) ? trends : []),
@@ -353,25 +373,31 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">
+      <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
         Loading dashboard...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-7xl px-6 py-10">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Xandeum
             </p>
             <h1 className="text-3xl font-semibold">Analytics Dashboard</h1>
           </div>
-          <div className="flex items-center gap-3 text-sm text-slate-500">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-            Live metrics
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span
+                className="h-2 w-2 rounded-full bg-emerald-500"
+                aria-hidden
+              />
+              Live metrics
+            </div>
+            <ModeToggle />
           </div>
         </header>
 
@@ -406,7 +432,7 @@ export default function Home() {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Trends</h2>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Storage and uptime over time
               </p>
             </div>
@@ -423,7 +449,7 @@ export default function Home() {
               ))}
             </div>
           </div>
-          <Card className="border-slate-200">
+          <Card>
             <CardContent className="pt-6">
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
@@ -431,11 +457,22 @@ export default function Home() {
                     data={trendData}
                     margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
                   >
-                    <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                    <CartesianGrid
+                      stroke={getCSSColor("--border")}
+                      strokeDasharray="3 3"
+                    />
                     <XAxis dataKey="timestamp" tick={{ fontSize: 12 }} hide />
-                    <YAxis tick={{ fontSize: 12 }} width={70} />
+                    <YAxis
+                      tick={{ fontSize: 12, fill: "#94a3b8" }}
+                      width={70}
+                    />
                     <Tooltip
-                      contentStyle={{ fontSize: 12 }}
+                      contentStyle={{
+                        fontSize: 12,
+                        backgroundColor: getCSSColor("--popover"),
+                        border: `1px solid ${getCSSColor("--border")}`,
+                        color: getCSSColor("--popover-foreground"),
+                      }}
                       labelFormatter={(value) => formatDate(String(value))}
                       formatter={(value, name) =>
                         String(name)?.includes("Uptime")
@@ -451,7 +488,7 @@ export default function Home() {
                       type="monotone"
                       dataKey={(p) => Number(p.usedStorage) / 1024 ** 4}
                       name="Used (TB)"
-                      stroke={accent}
+                      stroke={chartColors.primary}
                       strokeWidth={2}
                       dot={false}
                     />
@@ -459,7 +496,7 @@ export default function Home() {
                       type="monotone"
                       dataKey={(p) => Number(p.totalStorage) / 1024 ** 4}
                       name="Committed (TB)"
-                      stroke={neutral}
+                      stroke={chartColors.secondary}
                       strokeWidth={1.5}
                       dot={false}
                     />
@@ -467,7 +504,7 @@ export default function Home() {
                       type="monotone"
                       dataKey="avgUptime"
                       name="Avg Uptime (s)"
-                      stroke="#94a3b8"
+                      stroke={chartColors.tertiary}
                       strokeWidth={1.5}
                       dot={false}
                       yAxisId={1}
@@ -475,7 +512,7 @@ export default function Home() {
                     <YAxis
                       yAxisId={1}
                       orientation="right"
-                      tick={{ fontSize: 12 }}
+                      tick={{ fontSize: 12, fill: "#94a3b8" }}
                       width={60}
                     />
                   </LineChart>
@@ -486,11 +523,13 @@ export default function Home() {
         </section>
 
         <section className="mb-8 grid gap-6 lg:grid-cols-2">
-          <Card className="border-slate-200">
+          <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <div>
                 <CardTitle className="text-lg">Top Pods</CardTitle>
-                <p className="text-sm text-slate-500">Ranking by metric</p>
+                <p className="text-sm text-muted-foreground">
+                  Ranking by metric
+                </p>
               </div>
               <div className="flex gap-2 text-sm">
                 {["storage_committed", "storage_used", "uptime", "version"].map(
@@ -521,9 +560,9 @@ export default function Home() {
                 </TableHeader>
                 <TableBody>
                   {rankingData.map((item) => (
-                    <TableRow key={item.rank} className="hover:bg-slate-50">
+                    <TableRow key={item.rank} className="hover:bg-muted/50">
                       <TableCell className="font-medium">{item.rank}</TableCell>
-                      <TableCell className="font-mono text-xs text-slate-700">
+                      <TableCell className="font-mono text-xs">
                         {item.address}
                       </TableCell>
                       <TableCell>
@@ -541,7 +580,7 @@ export default function Home() {
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200">
+          <Card>
             <CardHeader>
               <CardTitle className="text-lg">Rankings (bar)</CardTitle>
             </CardHeader>
@@ -553,22 +592,33 @@ export default function Home() {
                     layout="vertical"
                     margin={{ left: 0, right: 16 }}
                   >
-                    <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
-                    <XAxis type="number" tick={{ fontSize: 12 }} />
+                    <CartesianGrid
+                      stroke={getCSSColor("--border")}
+                      strokeDasharray="3 3"
+                    />
+                    <XAxis
+                      type="number"
+                      tick={{ fontSize: 12, fill: getCSSColor("--foreground") }}
+                    />
                     <YAxis
                       dataKey="address"
                       type="category"
-                      tick={{ fontSize: 12 }}
+                      tick={{ fontSize: 12, fill: getCSSColor("--foreground") }}
                       width={220}
                       tickFormatter={(addr) => {
                         const item = rankingData.find(
                           (r) => r.address === addr
                         );
-                        return item ? `#${item.rank} ${addr}` : addr;
+                        return item ? `#${item.rank}: ${addr}` : addr;
                       }}
                     />
                     <Tooltip
-                      contentStyle={{ fontSize: 12 }}
+                      contentStyle={{
+                        fontSize: 12,
+                        backgroundColor: getCSSColor("--popover"),
+                        border: `1px solid ${getCSSColor("--border")}`,
+                        color: getCSSColor("--popover-foreground"),
+                      }}
                       formatter={(value, name) => [
                         formatStorageFromTb(value as number | string),
                         name,
@@ -577,7 +627,7 @@ export default function Home() {
                     <Bar
                       dataKey={(d) => Number(d.storageUsed) / 1024 ** 4}
                       name="Used (TB)"
-                      fill={accent}
+                      fill={chartColors.primary}
                       barSize={18}
                       radius={4}
                     />
@@ -592,13 +642,13 @@ export default function Home() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Filter Pods</h2>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Search and narrow down pods
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <input
-                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-slate-400 focus:outline-none"
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:border-ring focus:outline-none"
                 placeholder="Search address or pubkey"
                 value={filterSearch}
                 onChange={(e) => {
@@ -607,7 +657,7 @@ export default function Home() {
                 }}
               />
               <select
-                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                 value={filterIsPublic}
                 onChange={(e) => {
                   setFilterPage(1);
@@ -619,7 +669,7 @@ export default function Home() {
                 <option value="false">Private</option>
               </select>
               <select
-                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
                 value={filterVersion}
                 onChange={(e) => {
                   setFilterPage(1);
@@ -634,7 +684,7 @@ export default function Home() {
                 ))}
               </select>
               <input
-                className="h-9 w-28 rounded-md border border-slate-200 bg-white px-3 text-sm"
+                className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
                 placeholder="Min GB"
                 value={filterMinStorage}
                 onChange={(e) => {
@@ -643,7 +693,7 @@ export default function Home() {
                 }}
               />
               <input
-                className="h-9 w-28 rounded-md border border-slate-200 bg-white px-3 text-sm"
+                className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
                 placeholder="Max GB"
                 value={filterMaxStorage}
                 onChange={(e) => {
@@ -652,7 +702,7 @@ export default function Home() {
                 }}
               />
               <input
-                className="h-9 w-28 rounded-md border border-slate-200 bg-white px-3 text-sm"
+                className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
                 placeholder="Min uptime"
                 value={filterMinUptime}
                 onChange={(e) => {
@@ -663,10 +713,10 @@ export default function Home() {
             </div>
           </div>
 
-          <Card className="border-slate-200">
+          <Card>
             <CardContent className="pt-4">
               {filterLoading ? (
-                <div className="py-10 text-center text-sm text-slate-500">
+                <div className="py-10 text-center text-sm text-muted-foreground">
                   Loading pods...
                 </div>
               ) : (
@@ -711,14 +761,14 @@ export default function Home() {
                             return (
                               <TableRow
                                 key={pubkey}
-                                className="hover:bg-slate-50"
+                                className="hover:bg-muted/50"
                               >
-                                <TableCell className="font-mono text-xs text-slate-700">
+                                <TableCell className="font-mono text-xs">
                                   {pubkey.startsWith("no-pubkey-")
                                     ? "N/A"
                                     : pubkey}
                                 </TableCell>
-                                <TableCell className="font-mono text-xs text-slate-700">
+                                <TableCell className="font-mono text-xs">
                                   <div className="flex flex-col gap-0.5">
                                     {pods.map((pod) => (
                                       <div key={pod.id}>{pod.address}</div>
@@ -744,7 +794,7 @@ export default function Home() {
                                 <TableCell>
                                   {latestPod.uptime.toLocaleString()}s
                                 </TableCell>
-                                <TableCell className="text-xs text-slate-600">
+                                <TableCell className="text-xs text-muted-foreground">
                                   {formatDate(latestPod.lastSeen)}
                                 </TableCell>
                               </TableRow>
@@ -754,7 +804,7 @@ export default function Home() {
                       })()}
                     </TableBody>
                   </Table>
-                  <div className="mt-4 flex items-center justify-between text-sm text-slate-600">
+                  <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
                     <span>
                       Page {filterData?.pagination.page} /{" "}
                       {filterData?.pagination.totalPages || 1}
@@ -791,13 +841,13 @@ export default function Home() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Compare Pods</h2>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Comma-separated addresses or pubkeys (up to 10)
               </p>
             </div>
             <div className="flex gap-2">
               <input
-                className="h-9 min-w-70 rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-slate-400 focus:outline-none"
+                className="h-9 min-w-70 rounded-md border border-input bg-background px-3 text-sm focus:border-ring focus:outline-none"
                 placeholder="podA,podB,podC"
                 value={compareInput}
                 onChange={(e) => setCompareInput(e.target.value)}
@@ -813,29 +863,29 @@ export default function Home() {
           </div>
 
           {compareData && (
-            <Card className="border-slate-200">
+            <Card>
               <CardContent className="pt-4">
-                <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm text-slate-700">
+                <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                   <div>
-                    <p className="text-slate-500">Pods</p>
+                    <p className="text-muted-foreground">Pods</p>
                     <p className="font-semibold">
                       {compareData.statistics.totalPods}
                     </p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Avg Committed</p>
+                    <p className="text-muted-foreground">Avg Committed</p>
                     <p className="font-semibold">
                       {formatBytes(compareData.statistics.avgStorageCommitted)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Avg Used</p>
+                    <p className="text-muted-foreground">Avg Used</p>
                     <p className="font-semibold">
                       {formatBytes(compareData.statistics.avgStorageUsed)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-slate-500">Avg Uptime</p>
+                    <p className="text-muted-foreground">Avg Uptime</p>
                     <p className="font-semibold">
                       {compareData.statistics.avgUptime.toLocaleString()}s
                     </p>
@@ -858,9 +908,9 @@ export default function Home() {
                       {compareData.pods.map((pod) => (
                         <TableRow
                           key={pod.address}
-                          className="hover:bg-slate-50"
+                          className="hover:bg-muted/50"
                         >
-                          <TableCell className="font-mono text-xs text-slate-700">
+                          <TableCell className="font-mono text-xs">
                             {pod.address}
                           </TableCell>
                           <TableCell>
@@ -881,7 +931,7 @@ export default function Home() {
                           <TableCell>
                             {pod.current ? `${pod.current.uptime}s` : "-"}
                           </TableCell>
-                          <TableCell className="text-xs text-slate-600">
+                          <TableCell className="text-xs text-muted-foreground">
                             {pod.current
                               ? formatDate(pod.current.lastSeen)
                               : "-"}
@@ -893,7 +943,7 @@ export default function Home() {
                 </div>
 
                 <div className="mt-6">
-                  <h3 className="mb-2 text-sm font-semibold text-slate-700">
+                  <h3 className="mb-2 text-sm font-semibold">
                     Storage Used (GB)
                   </h3>
                   <div className="h-72">
@@ -902,15 +952,26 @@ export default function Home() {
                         data={mergeCompareHistory(compareData.pods)}
                         margin={{ left: 10, right: 20 }}
                       >
-                        <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                        <CartesianGrid
+                          stroke={getCSSColor("--border")}
+                          strokeDasharray="3 3"
+                        />
                         <XAxis
                           dataKey="timestamp"
                           tick={{ fontSize: 12 }}
                           hide
                         />
-                        <YAxis tick={{ fontSize: 12 }} width={70} />
+                        <YAxis
+                          tick={{ fontSize: 12, fill: "#94a3b8" }}
+                          width={70}
+                        />
                         <Tooltip
-                          contentStyle={{ fontSize: 12 }}
+                          contentStyle={{
+                            fontSize: 12,
+                            backgroundColor: getCSSColor("--popover"),
+                            border: `1px solid ${getCSSColor("--border")}`,
+                            color: getCSSColor("--popover-foreground"),
+                          }}
                           labelFormatter={(value) => formatDate(String(value))}
                           formatter={(value, name) => [
                             formatStorageFromTb(value as number | string),
@@ -923,7 +984,11 @@ export default function Home() {
                             key={pod.address}
                             type="monotone"
                             dataKey={pod.address}
-                            stroke={idx === 0 ? accent : "#94a3b8"}
+                            stroke={
+                              idx === 0
+                                ? chartColors.primary
+                                : chartColors.tertiary
+                            }
                             strokeWidth={idx === 0 ? 2 : 1.5}
                             dot={false}
                           />
@@ -953,18 +1018,17 @@ function StatCard({
   helperValue?: string;
 }) {
   return (
-    <Card className="border-slate-200">
+    <Card>
       <CardHeader className="pb-1">
-        <CardTitle className="text-sm font-medium text-slate-500">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
           {label}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-semibold text-slate-900">{value}</p>
+        <p className="text-2xl font-semibold">{value}</p>
         {helper && helperValue && (
-          <p className="mt-1 text-xs text-slate-500">
-            {helper}:{" "}
-            <span className="font-medium text-slate-700">{helperValue}</span>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {helper}: <span className="font-medium">{helperValue}</span>
           </p>
         )}
       </CardContent>
