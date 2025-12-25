@@ -254,10 +254,9 @@ export default function Home() {
   const [compareLoading, setCompareLoading] = useState(false);
   const [geoLocations, setGeoLocations] = useState<GlobalMapLocation[]>([]);
   const [geoLoading, setGeoLoading] = useState(false);
-  const [hoveredLocation, setHoveredLocation] =
-    useState<GlobalMapLocation | null>(null);
   const [selectedLocation, setSelectedLocation] =
     useState<GlobalMapLocation | null>(null);
+  const [isLive, setIsLive] = useState(true);
 
   // Get theme-aware chart colors
   const chartColors = useMemo(
@@ -274,31 +273,45 @@ export default function Home() {
     [trends]
   );
 
+  // Polling for live data updates
   useEffect(() => {
-    const loadInitial = async () => {
-      const summaryResp = await fetchJSON<Summary>("/api/stats/summary");
-      if (summaryResp) setSummary(summaryResp);
-      setLoading(false);
-    };
-    loadInitial();
-  }, []);
-
-  useEffect(() => {
-    const loadGeolocations = async () => {
-      setGeoLoading(true);
+    const loadData = async () => {
       try {
-        const response = await fetch("/api/geolocation", { cache: "no-store" });
-        if (response.ok) {
-          const data = await response.json();
-          setGeoLocations(data.locations || []);
+        const [summaryResp, geoResp] = await Promise.all([
+          fetchJSON<Summary>("/api/stats/summary"),
+          fetch("/api/geolocation", { cache: "no-store" }).then((res) =>
+            res.ok ? res.json() : null
+          ),
+        ]);
+
+        if (summaryResp) {
+          setSummary(summaryResp);
+          setIsLive(true);
+        } else {
+          setIsLive(false);
         }
+
+        if (geoResp?.locations) {
+          setGeoLocations(geoResp.locations);
+        }
+
+        setLoading(false);
+        setGeoLoading(false);
       } catch (error) {
-        console.error("Error fetching geolocations:", error);
-      } finally {
+        console.error("Error fetching data:", error);
+        setIsLive(false);
+        setLoading(false);
         setGeoLoading(false);
       }
     };
-    loadGeolocations();
+
+    // Initial load
+    loadData();
+
+    // Poll every 7 seconds
+    const pollInterval = setInterval(loadData, 7000);
+
+    return () => clearInterval(pollInterval);
   }, []);
 
   // Format locations for WorldMap
@@ -527,10 +540,12 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <span
-                className="h-2 w-2 rounded-full bg-emerald-500"
+                className={`h-2 w-2 rounded-full ${
+                  isLive ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+                }`}
                 aria-hidden
               />
-              Live metrics
+              {isLive ? "Live metrics" : "Recent Metrics"}
             </div>
             <ModeToggle />
           </div>
@@ -606,8 +621,6 @@ export default function Home() {
                               : ""
                           }`}
                           onClick={() => setSelectedLocation(loc)}
-                          onMouseEnter={() => setHoveredLocation(loc)}
-                          onMouseLeave={() => setHoveredLocation(null)}
                         >
                           <CardContent className="pt-4">
                             <div className="flex items-start justify-between mb-2">
