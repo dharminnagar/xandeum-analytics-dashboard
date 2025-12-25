@@ -337,21 +337,75 @@ export default function Home() {
   const groupedLocations = useMemo(() => {
     const locationMap = new Map<
       string,
-      (typeof geoLocations)[0] & { ips: string[] }
+      (typeof geoLocations)[0] & {
+        ips: string[];
+        versions: Record<string, number>;
+        totalStorageCommitted: number;
+        totalStorageUsed: number;
+        avgUptime: number;
+        publicCount: number;
+        privateCount: number;
+        lastSeenTimestamp: string;
+      }
     >();
 
     geoLocations.forEach((loc) => {
       const key = `${loc.city || "Unknown"}-${loc.country || "Unknown"}`;
       const existing = locationMap.get(key);
 
+      // Find pods at this location
+      const podsAtLocation = allPods.filter((pod) =>
+        loc.pubkeys.includes(pod.pubkey || "")
+      );
+
+      // Aggregate metrics
+      const versions: Record<string, number> = {};
+      let totalCommitted = 0;
+      let totalUsed = 0;
+      let totalUptime = 0;
+      let publicCount = 0;
+      let privateCount = 0;
+
+      podsAtLocation.forEach((pod) => {
+        versions[pod.version] = (versions[pod.version] || 0) + 1;
+        totalCommitted += Number(pod.storageCommitted) || 0;
+        totalUsed += Number(pod.storageUsed) || 0;
+        totalUptime += pod.uptime || 0;
+        if (pod.isPublic) publicCount++;
+        else privateCount++;
+      });
+
+      const avgUptime =
+        podsAtLocation.length > 0 ? totalUptime / podsAtLocation.length : 0;
+
       if (existing) {
         existing.nodeCount += loc.nodeCount;
         existing.ips.push(loc.ip);
         existing.pubkeys = [...new Set([...existing.pubkeys, ...loc.pubkeys])];
+
+        // Merge versions
+        Object.entries(versions).forEach(([ver, count]) => {
+          existing.versions[ver] = (existing.versions[ver] || 0) + count;
+        });
+        existing.totalStorageCommitted += totalCommitted;
+        existing.totalStorageUsed += totalUsed;
+        existing.avgUptime = (existing.avgUptime + avgUptime) / 2;
+        existing.publicCount += publicCount;
+        existing.privateCount += privateCount;
+        if (loc.lastSeen > existing.lastSeenTimestamp) {
+          existing.lastSeenTimestamp = loc.lastSeen;
+        }
       } else {
         locationMap.set(key, {
           ...loc,
           ips: [loc.ip],
+          versions,
+          totalStorageCommitted: totalCommitted,
+          totalStorageUsed: totalUsed,
+          avgUptime,
+          publicCount,
+          privateCount,
+          lastSeenTimestamp: loc.lastSeen,
         });
       }
     });
@@ -359,7 +413,7 @@ export default function Home() {
     return Array.from(locationMap.values()).sort(
       (a, b) => b.nodeCount - a.nodeCount
     );
-  }, [geoLocations]);
+  }, [geoLocations, allPods]);
 
   useEffect(() => {
     const loadTrends = async () => {
@@ -658,34 +712,115 @@ export default function Home() {
                                 {loc.nodeCount === 1 ? "node" : "nodes"}
                               </Badge>
                             </div>
-                            <div className="text-xs text-muted-foreground space-y-1">
-                              <div>IPs: {loc.ips?.length || 1}</div>
-                              {loc.isp && <div>ISP: {loc.isp}</div>}
-                              <div>
-                                Coords: {loc.lat.toFixed(2)},{" "}
-                                {loc.lng.toFixed(2)}
+                            <div className="text-xs text-muted-foreground space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span>IPs:</span>
+                                <span className="font-medium">
+                                  {loc.ips?.length || 1}
+                                </span>
                               </div>
-                              {loc.pubkeys.length > 0 && (
-                                <div className="pt-1">
-                                  <div className="font-medium mb-1">Nodes:</div>
-                                  <div className="space-y-0.5">
-                                    {loc.pubkeys.slice(0, 3).map((pubkey) => (
-                                      <div
-                                        key={pubkey}
-                                        className="font-mono text-xs truncate"
-                                      >
-                                        {pubkey.slice(0, 8)}...
-                                        {pubkey.slice(-8)}
-                                      </div>
-                                    ))}
-                                    {loc.pubkeys.length > 3 && (
-                                      <div className="text-xs italic">
-                                        +{loc.pubkeys.length - 3} more
-                                      </div>
+
+                              {loc.isp && (
+                                <div className="flex items-center justify-between">
+                                  <span>ISP:</span>
+                                  <span
+                                    className="font-medium truncate max-w-45"
+                                    title={loc.isp}
+                                  >
+                                    {loc.isp}
+                                  </span>
+                                </div>
+                              )}
+
+                              {loc.totalStorageCommitted > 0 && (
+                                <div className="pt-1 border-t border-border/50">
+                                  <div className="flex items-center justify-between">
+                                    <span>Total Storage:</span>
+                                    <span className="font-medium">
+                                      {formatBytes(loc.totalStorageCommitted)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>Used:</span>
+                                    <span className="font-medium">
+                                      {formatBytes(loc.totalStorageUsed)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span>Utilization:</span>
+                                    <span className="font-medium">
+                                      {(
+                                        (loc.totalStorageUsed /
+                                          loc.totalStorageCommitted) *
+                                        100
+                                      ).toFixed(1)}
+                                      %
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {loc.avgUptime > 0 && (
+                                <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                                  <span>Avg Uptime:</span>
+                                  <span className="font-medium">
+                                    {loc.avgUptime.toLocaleString(undefined, {
+                                      maximumFractionDigits: 0,
+                                    })}
+                                    s
+                                  </span>
+                                </div>
+                              )}
+
+                              {Object.keys(loc.versions || {}).length > 0 && (
+                                <div className="pt-1 border-t border-border/50">
+                                  <div className="font-medium mb-1">
+                                    Versions:
+                                  </div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {Object.entries(loc.versions).map(
+                                      ([version, count]) => (
+                                        <Badge
+                                          key={version}
+                                          variant="outline"
+                                          className="text-xs px-1.5 py-0"
+                                        >
+                                          {count}x {version}
+                                        </Badge>
+                                      )
                                     )}
                                   </div>
                                 </div>
                               )}
+
+                              {(loc.publicCount > 0 ||
+                                loc.privateCount > 0) && (
+                                <div className="flex items-center gap-2 pt-1 border-t border-border/50">
+                                  <Badge
+                                    variant="default"
+                                    className="text-xs px-1.5 py-0"
+                                  >
+                                    {loc.publicCount} Public
+                                  </Badge>
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-xs px-1.5 py-0"
+                                  >
+                                    {loc.privateCount} Private
+                                  </Badge>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                                <span>Last Seen:</span>
+                                <span className="font-medium">
+                                  {
+                                    formatDate(loc.lastSeenTimestamp).split(
+                                      ","
+                                    )[0]
+                                  }
+                                </span>
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
