@@ -26,6 +26,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 type Summary = {
   totalPods: number;
@@ -742,79 +748,132 @@ export default function Home() {
         </section>
 
         <section className="mb-8">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Filter Pods</h2>
-              <p className="text-sm text-muted-foreground">
-                Search and narrow down pods
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <input
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:border-ring focus:outline-none"
-                placeholder="Search address or pubkey"
-                value={filterSearch}
-                onChange={(e) => {
-                  setFilterPage(1);
-                  setFilterSearch(e.target.value);
-                }}
-              />
-              <select
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                value={filterIsPublic}
-                onChange={(e) => {
-                  setFilterPage(1);
-                  setFilterIsPublic(e.target.value);
-                }}
-              >
-                <option value="">Public?</option>
-                <option value="true">Public</option>
-                <option value="false">Private</option>
-              </select>
-              <select
-                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                value={filterVersion}
-                onChange={(e) => {
-                  setFilterPage(1);
-                  setFilterVersion(e.target.value);
-                }}
-              >
-                <option value="">Any version</option>
-                {versionOptions.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
-                placeholder="Min GB"
-                value={filterMinStorage}
-                onChange={(e) => {
-                  setFilterPage(1);
-                  setFilterMinStorage(e.target.value);
-                }}
-              />
-              <input
-                className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
-                placeholder="Max GB"
-                value={filterMaxStorage}
-                onChange={(e) => {
-                  setFilterPage(1);
-                  setFilterMaxStorage(e.target.value);
-                }}
-              />
-              <input
-                className="h-9 w-28 rounded-md border border-input bg-background px-3 text-sm"
-                placeholder="Min uptime"
-                value={filterMinUptime}
-                onChange={(e) => {
-                  setFilterPage(1);
-                  setFilterMinUptime(e.target.value);
-                }}
-              />
-            </div>
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold mb-1">All Pods</h2>
+            <p className="text-sm text-muted-foreground">
+              View and filter all pods in the network
+            </p>
           </div>
+
+          <Accordion type="single" collapsible className="mb-3">
+            <AccordionItem value="filters" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <span className="text-base font-semibold">Filters</span>
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-2">
+                  <div className="lg:col-span-2">
+                    <span className="text-base font-semibold">Filters</span>
+                  </div>
+                </div>
+              </AccordionContent>
+              <AccordionContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 pt-2">
+                  <div className="lg:col-span-2">
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Search
+                    </label>
+                    <input
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:border-ring focus:outline-none"
+                      placeholder="Address or pubkey..."
+                      value={filterSearch}
+                      onChange={(e) => {
+                        setFilterPage(1);
+                        setFilterSearch(e.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Visibility
+                    </label>
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={filterIsPublic}
+                      onChange={(e) => {
+                        setFilterPage(1);
+                        setFilterIsPublic(e.target.value);
+                      }}
+                    >
+                      <option value="">All</option>
+                      <option value="true">Public</option>
+                      <option value="false">Private</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Version
+                    </label>
+                    <select
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={filterVersion}
+                      onChange={(e) => {
+                        setFilterPage(1);
+                        setFilterVersion(e.target.value);
+                      }}
+                    >
+                      <option value="">All</option>
+                      {versionOptions.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Min Storage (GB)
+                    </label>
+                    <input
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      placeholder="0"
+                      type="number"
+                      value={filterMinStorage}
+                      onChange={(e) => {
+                        setFilterPage(1);
+                        setFilterMinStorage(e.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Max Storage (GB)
+                    </label>
+                    <input
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      placeholder="∞"
+                      type="number"
+                      value={filterMaxStorage}
+                      onChange={(e) => {
+                        setFilterPage(1);
+                        setFilterMaxStorage(e.target.value);
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1.5 block">
+                      Min Uptime (s)
+                    </label>
+                    <input
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      placeholder="0"
+                      type="number"
+                      value={filterMinUptime}
+                      onChange={(e) => {
+                        setFilterPage(1);
+                        setFilterMinUptime(e.target.value);
+                      }}
+                    />
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
           <Card>
             <CardContent className="pt-4">
