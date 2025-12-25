@@ -18,6 +18,7 @@ import {
   Legend,
 } from "recharts";
 import type { NodeMapLocation } from "@/types/geolocation";
+import { getCSSColor } from "@/lib/colors";
 
 type PodAddress = {
   address: string;
@@ -290,7 +291,7 @@ export default function NodePage() {
                 <LineChart data={chartData}>
                   <CartesianGrid
                     strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
+                    stroke={getCSSColor("--border")}
                   />
                   <XAxis
                     dataKey="timestamp"
@@ -300,13 +301,19 @@ export default function NodePage() {
                       return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, "0")}`;
                     }}
                   />
-                  <YAxis tick={{ fontSize: 12 }} width={70} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} width={70} />
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 12 }}
+                    width={70}
+                  />
                   <Tooltip
                     contentStyle={{
                       fontSize: 12,
-                      backgroundColor: "hsl(var(--popover))",
-                      border: "1px solid hsl(var(--border))",
-                      color: "hsl(var(--popover-foreground))",
+                      backgroundColor: getCSSColor("--popover"),
+                      border: `1px solid ${getCSSColor("--border")}`,
+                      color: getCSSColor("--popover-foreground"),
                     }}
                     labelFormatter={(value) => formatDate(String(value))}
                     formatter={(
@@ -324,32 +331,28 @@ export default function NodePage() {
                     type="monotone"
                     dataKey="storageCommitted"
                     name="Committed (TB)"
-                    stroke="hsl(var(--chart-1))"
+                    stroke={getCSSColor("--chart-1")}
                     strokeWidth={2}
                     dot={false}
+                    yAxisId="left"
                   />
                   <Line
                     type="monotone"
                     dataKey="storageUsed"
                     name="Used (TB)"
-                    stroke="hsl(var(--chart-2))"
+                    stroke={getCSSColor("--chart-2")}
                     strokeWidth={2}
                     dot={false}
+                    yAxisId="left"
                   />
                   <Line
                     type="monotone"
                     dataKey="uptime"
                     name="Uptime (s)"
-                    stroke="hsl(var(--chart-3))"
+                    stroke={getCSSColor("--chart-3")}
                     strokeWidth={2}
                     dot={false}
                     yAxisId="right"
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    tick={{ fontSize: 12 }}
-                    width={70}
                   />
                 </LineChart>
               </ResponsiveContainer>

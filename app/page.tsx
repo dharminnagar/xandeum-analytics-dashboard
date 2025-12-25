@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/accordion";
 import { WorldMap } from "@/components/ui/world-map";
 import type { GlobalMapLocation } from "@/types/geolocation";
+import { getCSSColor } from "@/lib/colors";
 
 type Summary = {
   totalPods: number;
@@ -155,18 +156,6 @@ type CompareResponseLike = WithData<CompareResponse> | CompareResponse | null;
 type CompareChartRow = {
   timestamp: string;
 } & Record<string, number | string>;
-
-// Helper to get computed CSS color values
-const getCSSColor = (variable: string): string => {
-  if (typeof window === "undefined") return "#3b82f6";
-  const root = document.documentElement;
-  const value = getComputedStyle(root).getPropertyValue(variable).trim();
-  // If it's an oklch value, convert it to a usable format
-  if (value.startsWith("oklch")) {
-    return value.replace(/^oklch\((.*)\)$/, "oklch($1)");
-  }
-  return value || "#3b82f6";
-};
 
 const formatBytes = (value: string | number | null) => {
   if (!value && value !== 0) return "N/A";
