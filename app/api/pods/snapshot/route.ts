@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { APINodesWithStatsResponse } from "@/types/nodes";
 import { upsertPod, savePodMetrics } from "@/lib/db/queries/pods";
 import prisma from "@/lib/db/prisma";
+import { ipGeolocationService } from "@/lib/ip-geolocation.service";
 
 export async function POST(request: Request) {
   const logs: string[] = [];
@@ -110,9 +111,42 @@ export async function POST(request: Request) {
       );
       logs.push(`Deleted ${deletedCount} offline pods`);
 
+      // Process geolocation for new IPs (non-blocking, don't fail snapshot if this fails)
+      let geoResult = {
+        newIpsCount: 0,
+        storedCount: 0,
+        batchesProcessed: 0,
+      };
+
+      try {
+        const podAddresses = data.stats.result.pods.map((pod) => pod.address);
+        geoResult = await ipGeolocationService.processNewIps(podAddresses);
+
+        if (geoResult.storedCount > 0) {
+          logs.push(
+            `Stored new IP geolocation data: ${geoResult.storedCount} new locations`
+          );
+        }
+      } catch (geoError) {
+        // Log but don't fail the snapshot if geolocation processing fails
+        logs.push(
+          `Geolocation processing failed (non-critical): ${geoError instanceof Error ? geoError.message : String(geoError)}`
+        );
+      }
+
       return NextResponse.json({
         ...data,
-        dbSave: { savedCount, deletedCount, errors, logs },
+        dbSave: {
+          savedCount,
+          deletedCount,
+          errors,
+          logs,
+          geolocation: {
+            newIps: geoResult.newIpsCount,
+            stored: geoResult.storedCount,
+            batchesProcessed: geoResult.batchesProcessed,
+          },
+        },
       });
     } catch (dbError) {
       const errorMsg = `Failed to save pods: ${dbError instanceof Error ? dbError.message : String(dbError)}`;

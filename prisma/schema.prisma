@@ -69,3 +69,26 @@ model PodMetricsHistory {
   @@index([createdAt])
   @@map("pod_metrics_history")
 }
+
+// IP Geolocation cache (from ip-api.com)
+model IpGeolocation {
+  id           Int       @id @default(autoincrement())
+  ip           String    @unique @db.VarChar(45)
+  status       String    @db.VarChar(20)
+  country      String?   @db.VarChar(100)
+  countryCode  String?   @map("country_code") @db.VarChar(10)
+  region       String?   @db.VarChar(10)
+  regionName   String?   @map("region_name") @db.VarChar(100)
+  city         String?   @db.VarChar(100)
+  zip          String?   @db.VarChar(20)
+  lat          Decimal?  @db.Decimal(10, 6)
+  lon          Decimal?  @db.Decimal(10, 6)
+  timezone     String?   @db.VarChar(50)
+  isp          String?   @db.VarChar(255)
+  org          String?   @db.VarChar(255)
+  asInfo       String?   @map("as_info") @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([ip])
+  @@map("ip_geolocation")
+}

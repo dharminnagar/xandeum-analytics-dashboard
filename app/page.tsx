@@ -654,7 +654,13 @@ export default function Home() {
                   </TableHeader>
                   <TableBody>
                     {rankingData.map((item) => (
-                      <TableRow key={item.rank} className="hover:bg-muted/50">
+                      <TableRow
+                        key={item.rank}
+                        className="hover:bg-muted/50 cursor-pointer"
+                        onClick={() => {
+                          window.location.href = `/node/${encodeURIComponent(item.address)}`;
+                        }}
+                      >
                         <TableCell className="font-medium">
                           {item.rank}
                         </TableCell>
@@ -925,7 +931,15 @@ export default function Home() {
                             return (
                               <TableRow
                                 key={pubkey}
-                                className="hover:bg-muted/50"
+                                className="hover:bg-muted/50 cursor-pointer"
+                                onClick={() => {
+                                  const validPubkey = pubkey.startsWith(
+                                    "no-pubkey-"
+                                  )
+                                    ? latestPod.address
+                                    : pubkey;
+                                  window.location.href = `/node/${encodeURIComponent(validPubkey)}`;
+                                }}
                               >
                                 <TableCell className="font-mono text-xs">
                                   {pubkey.startsWith("no-pubkey-")
