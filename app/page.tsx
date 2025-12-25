@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ModeToggle } from "@/components/ui/mode-toggle";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Summary = {
   totalPods: number;
@@ -250,6 +251,8 @@ export default function Home() {
   const [compareInput, setCompareInput] = useState("");
   const [compareData, setCompareData] = useState<CompareResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [rankingsLoading, setRankingsLoading] = useState(false);
   const [filterLoading, setFilterLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
 
@@ -269,18 +272,20 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const [summaryResp, trendResp, rankingResp] = await Promise.all([
-        fetchJSON<Summary>("/api/stats/summary"),
-        fetchJSON<TrendApiResponse | TrendPoint[]>(
-          `/api/stats/trends?period=${trendPeriod}`
-        ),
-        fetchJSON<RankingResponse>(
-          `/api/pods/rankings?metric=${rankingMetric}&limit=10`
-        ),
-      ]);
+    const loadInitial = async () => {
+      const summaryResp = await fetchJSON<Summary>("/api/stats/summary");
       if (summaryResp) setSummary(summaryResp);
+      setLoading(false);
+    };
+    loadInitial();
+  }, []);
+
+  useEffect(() => {
+    const loadTrends = async () => {
+      setTrendsLoading(true);
+      const trendResp = await fetchJSON<TrendApiResponse | TrendPoint[]>(
+        `/api/stats/trends?period=${trendPeriod}`
+      );
       if (trendResp) {
         if (Array.isArray(trendResp)) {
           setTrends(trendResp);
@@ -290,11 +295,22 @@ export default function Home() {
           );
         }
       }
-      if (rankingResp) setRankings(rankingResp);
-      setLoading(false);
+      setTrendsLoading(false);
     };
-    load();
-  }, [trendPeriod, rankingMetric]);
+    loadTrends();
+  }, [trendPeriod]);
+
+  useEffect(() => {
+    const loadRankings = async () => {
+      setRankingsLoading(true);
+      const rankingResp = await fetchJSON<RankingResponse>(
+        `/api/pods/rankings?metric=${rankingMetric}&limit=10`
+      );
+      if (rankingResp) setRankings(rankingResp);
+      setRankingsLoading(false);
+    };
+    loadRankings();
+  }, [rankingMetric]);
 
   useEffect(() => {
     const loadFilter = async () => {
@@ -373,8 +389,64 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">
-        Loading dashboard...
+      <div className="min-h-screen bg-background text-foreground">
+        <div className="mx-auto max-w-7xl px-6 py-10">
+          <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <Skeleton className="h-4 w-20 mb-2" />
+              <Skeleton className="h-9 w-64" />
+            </div>
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-9 w-9 rounded-md" />
+            </div>
+          </header>
+
+          <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardContent className="pt-6">
+                  <Skeleton className="h-4 w-32 mb-2" />
+                  <Skeleton className="h-8 w-20 mb-4" />
+                  <Skeleton className="h-3 w-24 mb-1" />
+                  <Skeleton className="h-3 w-16" />
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+
+          <section className="mb-8">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <Skeleton className="h-6 w-32 mb-1" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+              <div className="flex gap-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-9 w-16" />
+                ))}
+              </div>
+            </div>
+            <Card>
+              <CardContent className="pt-6">
+                <Skeleton className="h-72 w-full" />
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="mb-8 grid gap-6 lg:grid-cols-2">
+            {[1, 2].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-64 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+        </div>
       </div>
     );
   }
@@ -451,73 +523,82 @@ export default function Home() {
           </div>
           <Card>
             <CardContent className="pt-6">
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={trendData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      stroke={getCSSColor("--border")}
-                      strokeDasharray="3 3"
-                    />
-                    <XAxis dataKey="timestamp" tick={{ fontSize: 12 }} hide />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: "#94a3b8" }}
-                      width={70}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        fontSize: 12,
-                        backgroundColor: getCSSColor("--popover"),
-                        border: `1px solid ${getCSSColor("--border")}`,
-                        color: getCSSColor("--popover-foreground"),
-                      }}
-                      labelFormatter={(value) => formatDate(String(value))}
-                      formatter={(value, name) =>
-                        String(name)?.includes("Uptime")
-                          ? [formatNumericValue(value as number | string), name]
-                          : [
-                              formatStorageFromTb(value as number | string),
-                              name,
-                            ]
-                      }
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line
-                      type="monotone"
-                      dataKey={(p) => Number(p.usedStorage) / 1024 ** 4}
-                      name="Used (TB)"
-                      stroke={chartColors.primary}
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey={(p) => Number(p.totalStorage) / 1024 ** 4}
-                      name="Committed (TB)"
-                      stroke={chartColors.secondary}
-                      strokeWidth={1.5}
-                      dot={false}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="avgUptime"
-                      name="Avg Uptime (s)"
-                      stroke={chartColors.tertiary}
-                      strokeWidth={1.5}
-                      dot={false}
-                      yAxisId={1}
-                    />
-                    <YAxis
-                      yAxisId={1}
-                      orientation="right"
-                      tick={{ fontSize: 12, fill: "#94a3b8" }}
-                      width={60}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              {trendsLoading ? (
+                <div className="h-72 flex items-center justify-center">
+                  <Skeleton className="h-full w-full" />
+                </div>
+              ) : (
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={trendData}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid
+                        stroke={getCSSColor("--border")}
+                        strokeDasharray="3 3"
+                      />
+                      <XAxis dataKey="timestamp" tick={{ fontSize: 12 }} hide />
+                      <YAxis
+                        tick={{ fontSize: 12, fill: "#94a3b8" }}
+                        width={70}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          fontSize: 12,
+                          backgroundColor: getCSSColor("--popover"),
+                          border: `1px solid ${getCSSColor("--border")}`,
+                          color: getCSSColor("--popover-foreground"),
+                        }}
+                        labelFormatter={(value) => formatDate(String(value))}
+                        formatter={(value, name) =>
+                          String(name)?.includes("Uptime")
+                            ? [
+                                formatNumericValue(value as number | string),
+                                name,
+                              ]
+                            : [
+                                formatStorageFromTb(value as number | string),
+                                name,
+                              ]
+                        }
+                      />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Line
+                        type="monotone"
+                        dataKey={(p) => Number(p.usedStorage) / 1024 ** 4}
+                        name="Used (TB)"
+                        stroke={chartColors.primary}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey={(p) => Number(p.totalStorage) / 1024 ** 4}
+                        name="Committed (TB)"
+                        stroke={chartColors.secondary}
+                        strokeWidth={1.5}
+                        dot={false}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="avgUptime"
+                        name="Avg Uptime (s)"
+                        stroke={chartColors.tertiary}
+                        strokeWidth={1.5}
+                        dot={false}
+                        yAxisId={1}
+                      />
+                      <YAxis
+                        yAxisId={1}
+                        orientation="right"
+                        tick={{ fontSize: 12, fill: "#94a3b8" }}
+                        width={60}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>
@@ -547,36 +628,46 @@ export default function Home() {
               </div>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-14">#</TableHead>
-                    <TableHead>Address</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Storage Used</TableHead>
-                    <TableHead>Committed</TableHead>
-                    <TableHead>Uptime</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rankingData.map((item) => (
-                    <TableRow key={item.rank} className="hover:bg-muted/50">
-                      <TableCell className="font-medium">{item.rank}</TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {item.address}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{item.version}</Badge>
-                      </TableCell>
-                      <TableCell>{formatBytes(item.storageUsed)}</TableCell>
-                      <TableCell>
-                        {formatBytes(item.storageCommitted)}
-                      </TableCell>
-                      <TableCell>{item.uptime.toLocaleString()}s</TableCell>
-                    </TableRow>
+              {rankingsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-14">#</TableHead>
+                      <TableHead>Address</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Storage Used</TableHead>
+                      <TableHead>Committed</TableHead>
+                      <TableHead>Uptime</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rankingData.map((item) => (
+                      <TableRow key={item.rank} className="hover:bg-muted/50">
+                        <TableCell className="font-medium">
+                          {item.rank}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {item.address}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{item.version}</Badge>
+                        </TableCell>
+                        <TableCell>{formatBytes(item.storageUsed)}</TableCell>
+                        <TableCell>
+                          {formatBytes(item.storageCommitted)}
+                        </TableCell>
+                        <TableCell>{item.uptime.toLocaleString()}s</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
 
@@ -585,55 +676,67 @@ export default function Home() {
               <CardTitle className="text-lg">Rankings (bar)</CardTitle>
             </CardHeader>
             <CardContent className="pl-0 pr-4 pt-4">
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={rankingData}
-                    layout="vertical"
-                    margin={{ left: 0, right: 16 }}
-                  >
-                    <CartesianGrid
-                      stroke={getCSSColor("--border")}
-                      strokeDasharray="3 3"
-                    />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 12, fill: getCSSColor("--foreground") }}
-                    />
-                    <YAxis
-                      dataKey="address"
-                      type="category"
-                      tick={{ fontSize: 12, fill: getCSSColor("--foreground") }}
-                      width={220}
-                      tickFormatter={(addr) => {
-                        const item = rankingData.find(
-                          (r) => r.address === addr
-                        );
-                        return item ? `#${item.rank}: ${addr}` : addr;
-                      }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        fontSize: 12,
-                        backgroundColor: getCSSColor("--popover"),
-                        border: `1px solid ${getCSSColor("--border")}`,
-                        color: getCSSColor("--popover-foreground"),
-                      }}
-                      formatter={(value, name) => [
-                        formatStorageFromTb(value as number | string),
-                        name,
-                      ]}
-                    />
-                    <Bar
-                      dataKey={(d) => Number(d.storageUsed) / 1024 ** 4}
-                      name="Used (TB)"
-                      fill={chartColors.primary}
-                      barSize={18}
-                      radius={4}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {rankingsLoading ? (
+                <div className="h-72 w-full flex items-center justify-center">
+                  <Skeleton className="h-full w-full" />
+                </div>
+              ) : (
+                <div className="h-72 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={rankingData}
+                      layout="vertical"
+                      margin={{ left: 0, right: 16 }}
+                    >
+                      <CartesianGrid
+                        stroke={getCSSColor("--border")}
+                        strokeDasharray="3 3"
+                      />
+                      <XAxis
+                        type="number"
+                        tick={{
+                          fontSize: 12,
+                          fill: getCSSColor("--foreground"),
+                        }}
+                      />
+                      <YAxis
+                        dataKey="address"
+                        type="category"
+                        tick={{
+                          fontSize: 12,
+                          fill: getCSSColor("--foreground"),
+                        }}
+                        width={220}
+                        tickFormatter={(addr) => {
+                          const item = rankingData.find(
+                            (r) => r.address === addr
+                          );
+                          return item ? `#${item.rank}: ${addr}` : addr;
+                        }}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          fontSize: 12,
+                          backgroundColor: getCSSColor("--popover"),
+                          border: `1px solid ${getCSSColor("--border")}`,
+                          color: getCSSColor("--popover-foreground"),
+                        }}
+                        formatter={(value, name) => [
+                          formatStorageFromTb(value as number | string),
+                          name,
+                        ]}
+                      />
+                      <Bar
+                        dataKey={(d) => Number(d.storageUsed) / 1024 ** 4}
+                        name="Used (TB)"
+                        fill={chartColors.primary}
+                        barSize={18}
+                        radius={4}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
         </section>
@@ -716,8 +819,10 @@ export default function Home() {
           <Card>
             <CardContent className="pt-4">
               {filterLoading ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">
-                  Loading pods...
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
