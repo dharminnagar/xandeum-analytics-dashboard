@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { WorldMap } from "@/components/ui/world-map";
 import {
   LineChart,
   Line,
@@ -76,6 +77,8 @@ export default function NodePage() {
   const [loading, setLoading] = useState(true);
   const [geoLoading, setGeoLoading] = useState(true);
   const [period, setPeriod] = useState<"24h" | "7d" | "30d">("24h");
+  const [selectedLocation, setSelectedLocation] =
+    useState<NodeMapLocation | null>(null);
 
   useEffect(() => {
     const fetchNodeData = async () => {
@@ -121,6 +124,18 @@ export default function NodePage() {
       fetchGeolocation();
     }
   }, [id]);
+
+  // Format locations for WorldMap
+  const mapLocations = useMemo(() => {
+    return geoData.map((loc) => ({
+      lat: loc.lat,
+      lng: loc.lng,
+      ip: loc.ip,
+      city: loc.city,
+      country: loc.country,
+      label: `${[loc.city, loc.region, loc.country].filter(Boolean).join(", ") || "Unknown"} - ${loc.snapshotCount} ${loc.snapshotCount === 1 ? "snapshot" : "snapshots"}`,
+    }));
+  }, [geoData]);
 
   if (loading) {
     return (
@@ -407,42 +422,75 @@ export default function NodePage() {
         {!geoLoading && geoData.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Geographic Locations</CardTitle>
+              <CardTitle>Geographic Distribution</CardTitle>
               <p className="text-sm text-muted-foreground">
-                IP addresses and their locations
+                Node locations across the globe
               </p>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {geoData.map((loc) => (
-                  <Card key={loc.ip}>
-                    <CardContent className="pt-4">
-                      <div className="font-mono text-sm mb-2 break-all">
-                        {loc.ip}
-                      </div>
-                      <div className="text-sm space-y-1">
-                        <div>
-                          <span className="font-medium">Location:</span>{" "}
-                          {[loc.city, loc.region, loc.country]
-                            .filter(Boolean)
-                            .join(", ") || "Unknown"}
-                        </div>
-                        {loc.isp && (
-                          <div className="text-xs text-muted-foreground">
-                            ISP: {loc.isp}
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Globe Visualization */}
+                <div className="relative flex items-center justify-center h-100 lg:h-125 bg-muted/20 rounded-lg overflow-hidden">
+                  <WorldMap
+                    locations={mapLocations}
+                    height="100%"
+                    selectedLocation={selectedLocation}
+                    onLocationClick={(loc) => {
+                      const matchingLocation = geoData.find(
+                        (g) => g.lat === loc.lat && g.lng === loc.lng
+                      );
+                      setSelectedLocation(matchingLocation || null);
+                    }}
+                  />
+                </div>
+
+                {/* Location Details */}
+                <div className="space-y-3">
+                  <div className="text-sm font-medium mb-4">
+                    {geoData.length}{" "}
+                    {geoData.length === 1 ? "Location" : "Locations"}
+                  </div>
+                  <div className="space-y-3 max-h-112.5 overflow-y-auto pr-2">
+                    {geoData.map((loc) => (
+                      <Card
+                        key={loc.ip}
+                        className={`cursor-pointer hover:bg-accent transition-colors ${
+                          selectedLocation?.lat === loc.lat &&
+                          selectedLocation?.lng === loc.lng
+                            ? "ring-2 ring-primary"
+                            : ""
+                        }`}
+                        onClick={() => setSelectedLocation(loc)}
+                      >
+                        <CardContent className="pt-4">
+                          <div className="font-mono text-sm mb-2 break-all">
+                            {loc.ip}
                           </div>
-                        )}
-                        <div className="text-xs text-muted-foreground">
-                          Coordinates: {loc.lat.toFixed(4)},{" "}
-                          {loc.lng.toFixed(4)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Snapshots: {loc.snapshotCount}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                          <div className="text-sm space-y-1">
+                            <div>
+                              <span className="font-medium">Location:</span>{" "}
+                              {[loc.city, loc.region, loc.country]
+                                .filter(Boolean)
+                                .join(", ") || "Unknown"}
+                            </div>
+                            {loc.isp && (
+                              <div className="text-xs text-muted-foreground">
+                                ISP: {loc.isp}
+                              </div>
+                            )}
+                            <div className="text-xs text-muted-foreground">
+                              Coordinates: {loc.lat.toFixed(4)},{" "}
+                              {loc.lng.toFixed(4)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Snapshots: {loc.snapshotCount}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

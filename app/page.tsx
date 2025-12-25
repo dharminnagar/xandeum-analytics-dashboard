@@ -32,6 +32,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { WorldMap } from "@/components/ui/world-map";
+import type { GlobalMapLocation } from "@/types/geolocation";
 
 type Summary = {
   totalPods: number;
@@ -261,6 +263,12 @@ export default function Home() {
   const [rankingsLoading, setRankingsLoading] = useState(false);
   const [filterLoading, setFilterLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
+  const [geoLocations, setGeoLocations] = useState<GlobalMapLocation[]>([]);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [hoveredLocation, setHoveredLocation] =
+    useState<GlobalMapLocation | null>(null);
+  const [selectedLocation, setSelectedLocation] =
+    useState<GlobalMapLocation | null>(null);
 
   // Get theme-aware chart colors
   const chartColors = useMemo(
@@ -285,6 +293,66 @@ export default function Home() {
     };
     loadInitial();
   }, []);
+
+  useEffect(() => {
+    const loadGeolocations = async () => {
+      setGeoLoading(true);
+      try {
+        const response = await fetch("/api/geolocation", { cache: "no-store" });
+        if (response.ok) {
+          const data = await response.json();
+          setGeoLocations(data.locations || []);
+        }
+      } catch (error) {
+        console.error("Error fetching geolocations:", error);
+      } finally {
+        setGeoLoading(false);
+      }
+    };
+    loadGeolocations();
+  }, []);
+
+  // Format locations for WorldMap
+  const mapLocations = useMemo(() => {
+    return geoLocations.map((loc) => ({
+      lat: loc.lat,
+      lng: loc.lng,
+      ip: loc.ip,
+      city: loc.city,
+      country: loc.country,
+      nodeCount: loc.nodeCount,
+      label: `${[loc.city, loc.country].filter(Boolean).join(", ") || "Unknown"} - ${loc.nodeCount} ${loc.nodeCount === 1 ? "node" : "nodes"}`,
+      pubkeys: loc.pubkeys,
+    }));
+  }, [geoLocations]);
+
+  // Group locations by city+country to avoid duplicates in the list
+  const groupedLocations = useMemo(() => {
+    const locationMap = new Map<
+      string,
+      (typeof geoLocations)[0] & { ips: string[] }
+    >();
+
+    geoLocations.forEach((loc) => {
+      const key = `${loc.city || "Unknown"}-${loc.country || "Unknown"}`;
+      const existing = locationMap.get(key);
+
+      if (existing) {
+        existing.nodeCount += loc.nodeCount;
+        existing.ips.push(loc.ip);
+        existing.pubkeys = [...new Set([...existing.pubkeys, ...loc.pubkeys])];
+      } else {
+        locationMap.set(key, {
+          ...loc,
+          ips: [loc.ip],
+        });
+      }
+    });
+
+    return Array.from(locationMap.values()).sort(
+      (a, b) => b.nodeCount - a.nodeCount
+    );
+  }, [geoLocations]);
 
   useEffect(() => {
     const loadTrends = async () => {
@@ -503,6 +571,104 @@ export default function Home() {
               helper="Utilization"
               helperValue={formatPercent(summary.storageUtilization)}
             />
+          </section>
+        )}
+
+        {/* Global Node Distribution */}
+        {!geoLoading && geoLocations.length > 0 && (
+          <section className="mb-8">
+            <Card>
+              <CardHeader>
+                <CardTitle>Global Node Distribution</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {geoLocations.length} locations ·{" "}
+                  {geoLocations.reduce((sum, loc) => sum + loc.nodeCount, 0)}{" "}
+                  nodes worldwide
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+                  {/* Globe Visualization */}
+                  <div className="relative flex items-center justify-center h-100 lg:h-125 bg-muted/20 rounded-lg overflow-hidden">
+                    <WorldMap
+                      locations={mapLocations}
+                      height="100%"
+                      selectedLocation={selectedLocation}
+                      onLocationClick={(loc) => {
+                        const matchingLocation = geoLocations.find(
+                          (g) => g.lat === loc.lat && g.lng === loc.lng
+                        );
+                        setSelectedLocation(matchingLocation || null);
+                      }}
+                    />
+                  </div>
+
+                  {/* Location Info Panel */}
+                  <div className="space-y-4">
+                    <div className="text-sm font-medium">Top Locations</div>
+                    <div className="space-y-3 max-h-112.5 overflow-y-auto pr-2">
+                      {groupedLocations.slice(0, 10).map((loc, idx) => (
+                        <Card
+                          key={`${loc.city}-${loc.country}-${idx}`}
+                          className={`cursor-pointer hover:bg-accent transition-colors ${
+                            selectedLocation?.lat === loc.lat &&
+                            selectedLocation?.lng === loc.lng
+                              ? "ring-2 ring-primary"
+                              : ""
+                          }`}
+                          onClick={() => setSelectedLocation(loc)}
+                          onMouseEnter={() => setHoveredLocation(loc)}
+                          onMouseLeave={() => setHoveredLocation(null)}
+                        >
+                          <CardContent className="pt-4">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="text-sm font-medium">
+                                {[loc.city, loc.country]
+                                  .filter(Boolean)
+                                  .join(", ") || "Unknown"}
+                              </div>
+                              <Badge variant="secondary">
+                                {loc.nodeCount}{" "}
+                                {loc.nodeCount === 1 ? "node" : "nodes"}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              <div>IPs: {loc.ips?.length || 1}</div>
+                              {loc.isp && <div>ISP: {loc.isp}</div>}
+                              <div>
+                                Coords: {loc.lat.toFixed(2)},{" "}
+                                {loc.lng.toFixed(2)}
+                              </div>
+                              {loc.pubkeys.length > 0 && (
+                                <div className="pt-1">
+                                  <div className="font-medium mb-1">Nodes:</div>
+                                  <div className="space-y-0.5">
+                                    {loc.pubkeys.slice(0, 3).map((pubkey) => (
+                                      <div
+                                        key={pubkey}
+                                        className="font-mono text-xs truncate"
+                                      >
+                                        {pubkey.slice(0, 8)}...
+                                        {pubkey.slice(-8)}
+                                      </div>
+                                    ))}
+                                    {loc.pubkeys.length > 3 && (
+                                      <div className="text-xs italic">
+                                        +{loc.pubkeys.length - 3} more
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </section>
         )}
 

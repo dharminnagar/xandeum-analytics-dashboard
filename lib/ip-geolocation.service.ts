@@ -530,6 +530,122 @@ export class IpGeolocationService {
       throw error;
     }
   }
+
+  /**
+   * Get all nodes with their geolocation data
+   */
+  async getAllNodesWithGeolocation(): Promise<{
+    locations: Array<{
+      ip: string;
+      lat: number;
+      lon: number;
+      city: string | null;
+      region: string | null;
+      country: string | null;
+      countryCode: string | null;
+      isp: string | null;
+      org: string | null;
+      nodeCount: number;
+      pubkeys: string[];
+      firstSeen: Date;
+      lastSeen: Date;
+    }>;
+    totalNodes: number;
+    totalLocations: number;
+  }> {
+    try {
+      // Get all pods with their addresses
+      const pods = await prisma.pod.findMany({
+        select: {
+          pubkey: true,
+          address: true,
+          updatedAt: true,
+          createdAt: true,
+          metrics: {
+            orderBy: { timestamp: "desc" },
+            take: 1,
+            select: {
+              timestamp: true,
+            },
+          },
+        },
+      });
+
+      // Get all geolocations
+      const geolocations = await prisma.ipGeolocation.findMany();
+      const geoMap = new Map(geolocations.map((g) => [g.ip, g]));
+
+      // Group pods by IP location
+      const locationMap = new Map<
+        string,
+        {
+          ip: string;
+          lat: number;
+          lon: number;
+          city: string | null;
+          region: string | null;
+          country: string | null;
+          countryCode: string | null;
+          isp: string | null;
+          org: string | null;
+          pubkeys: Set<string>;
+          firstSeen: Date;
+          lastSeen: Date;
+        }
+      >();
+
+      for (const pod of pods) {
+        const ip = this.extractIp(pod.address);
+        if (!ip) continue;
+
+        const geo = geoMap.get(ip);
+        if (!geo || geo.status !== "success" || !geo.lat || !geo.lon) continue;
+
+        const lastSeen =
+          pod.metrics[0]?.timestamp || pod.updatedAt || pod.createdAt;
+
+        const existing = locationMap.get(ip);
+        if (existing) {
+          if (pod.pubkey) existing.pubkeys.add(pod.pubkey);
+          if (pod.createdAt < existing.firstSeen)
+            existing.firstSeen = pod.createdAt;
+          if (lastSeen > existing.lastSeen) existing.lastSeen = lastSeen;
+        } else {
+          locationMap.set(ip, {
+            ip,
+            lat: Number(geo.lat),
+            lon: Number(geo.lon),
+            city: geo.city,
+            region: geo.regionName,
+            country: geo.country,
+            countryCode: geo.countryCode,
+            isp: geo.isp,
+            org: geo.org,
+            pubkeys: new Set(pod.pubkey ? [pod.pubkey] : []),
+            firstSeen: pod.createdAt,
+            lastSeen: lastSeen,
+          });
+        }
+      }
+
+      const locations = Array.from(locationMap.values()).map((loc) => ({
+        ...loc,
+        pubkeys: Array.from(loc.pubkeys),
+        nodeCount: loc.pubkeys.size,
+      }));
+
+      const totalNodes = new Set(locations.flatMap((l) => l.pubkeys)).size;
+
+      return {
+        locations,
+        totalNodes,
+        totalLocations: locations.length,
+      };
+    } catch (error) {
+      console.error("Failed to get all nodes with geolocation:", error);
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

@@ -49,3 +49,19 @@ export interface NodeMapLocation {
   lastSeen: string;
   snapshotCount: number;
 }
+
+export interface GlobalMapLocation {
+  ip: string;
+  lat: number;
+  lng: number;
+  city: string | null;
+  region: string | null;
+  country: string | null;
+  countryCode: string | null;
+  isp: string | null;
+  org: string | null;
+  nodeCount: number;
+  pubkeys: string[];
+  firstSeen: string;
+  lastSeen: string;
+}
