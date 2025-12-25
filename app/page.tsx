@@ -245,8 +245,13 @@ export default function Home() {
   const [filterMaxStorage, setFilterMaxStorage] = useState("");
   const [filterMinUptime, setFilterMinUptime] = useState("");
   const itemsPerPage = 50;
-  const [compareInput, setCompareInput] = useState("");
+  const [selectedPods, setSelectedPods] = useState<string[]>([]);
+  const [compareSearch, setCompareSearch] = useState("");
+  const [showCompareList, setShowCompareList] = useState(false);
   const [compareData, setCompareData] = useState<CompareResponse | null>(null);
+  const [compareMetric, setCompareMetric] = useState<
+    "used" | "committed" | "percent" | "uptime"
+  >("used");
   const [loading, setLoading] = useState(true);
   const [trendsLoading, setTrendsLoading] = useState(false);
   const [rankingsLoading, setRankingsLoading] = useState(false);
@@ -438,20 +443,39 @@ export default function Home() {
   }, [allPods, filterPage, itemsPerPage]);
 
   const handleCompare = async () => {
-    if (!compareInput.trim()) return;
+    if (selectedPods.length === 0) return;
     setCompareLoading(true);
-    const ids = compareInput
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 10);
     const resp: CompareResponseLike = await fetchJSON<
       WithData<CompareResponse> | CompareResponse
-    >(`/api/pods/compare?pods=${encodeURIComponent(ids.join(","))}`);
+    >(`/api/pods/compare?pods=${encodeURIComponent(selectedPods.join(","))}`);
     const parsed = extractData(resp);
     if (parsed) setCompareData(parsed);
     setCompareLoading(false);
   };
+
+  const togglePodSelection = (identifier: string) => {
+    setSelectedPods((prev) => {
+      if (prev.includes(identifier)) {
+        return prev.filter((p) => p !== identifier);
+      } else if (prev.length < 3) {
+        return [...prev, identifier];
+      }
+      return prev;
+    });
+  };
+
+  const filteredPodsForCompare = useMemo(() => {
+    if (!compareSearch) return allPods.slice(0, 20);
+    const search = compareSearch.toLowerCase();
+    return allPods
+      .filter(
+        (pod) =>
+          (pod.pubkey && pod.pubkey.toLowerCase().includes(search)) ||
+          pod.address.toLowerCase().includes(search) ||
+          pod.version.toLowerCase().includes(search)
+      )
+      .slice(0, 20);
+  }, [allPods, compareSearch]);
 
   const versionOptions = useMemo(() => {
     if (!summary) return [] as string[];
@@ -921,7 +945,347 @@ export default function Home() {
           </Card>
         </section>
 
-        <section className="mb-8">
+        <section>
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg">Compare Pods</CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Select up to 3 pods to compare their metrics and history
+                  </p>
+                </div>
+                <Button
+                  onClick={handleCompare}
+                  disabled={compareLoading || selectedPods.length === 0}
+                  size="sm"
+                >
+                  {compareLoading
+                    ? "Comparing..."
+                    : `Compare ${selectedPods.length > 0 ? `(${selectedPods.length})` : ""}`}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Selected Pods */}
+              {selectedPods.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">
+                    Selected ({selectedPods.length}/3)
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPods.map((podId) => {
+                      const pod = allPods.find(
+                        (p) =>
+                          (p.pubkey && p.pubkey === podId) ||
+                          p.address === podId
+                      );
+                      return (
+                        <Badge
+                          key={podId}
+                          variant="secondary"
+                          className="pl-2 pr-1 py-1 flex items-center gap-1.5"
+                        >
+                          <span className="font-mono text-xs max-w-40 truncate">
+                            {pod?.pubkey || pod?.address || podId}
+                          </span>
+                          <button
+                            onClick={() => togglePodSelection(podId)}
+                            className="ml-1 rounded-sm hover:bg-muted"
+                          >
+                            <span className="text-xs">×</span>
+                          </button>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Search and Pod List */}
+              <Accordion
+                type="single"
+                collapsible
+                value={showCompareList ? "select" : ""}
+              >
+                <AccordionItem
+                  value="select"
+                  className="border rounded-lg px-4"
+                >
+                  <AccordionTrigger
+                    className="hover:no-underline"
+                    onClick={() => setShowCompareList(!showCompareList)}
+                  >
+                    <span className="text-sm font-semibold">
+                      {showCompareList ? "Hide" : "Select"} Pods from List
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-3 pt-2">
+                      <input
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:border-ring focus:outline-none"
+                        placeholder="Search by address, pubkey, or version..."
+                        value={compareSearch}
+                        onChange={(e) => setCompareSearch(e.target.value)}
+                      />
+                      <div className="max-h-80 overflow-y-auto space-y-2">
+                        {filteredPodsForCompare.length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No pods found
+                          </p>
+                        ) : (
+                          filteredPodsForCompare.map((pod) => {
+                            const identifier = pod.pubkey || pod.address;
+                            const isSelected =
+                              selectedPods.includes(identifier);
+                            return (
+                              <div
+                                key={pod.id}
+                                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                                  isSelected
+                                    ? "border-primary bg-primary/5"
+                                    : "border-border hover:bg-accent"
+                                }`}
+                                onClick={() => togglePodSelection(identifier)}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() =>
+                                    togglePodSelection(identifier)
+                                  }
+                                  className="h-4 w-4 rounded border-input"
+                                  disabled={
+                                    !isSelected && selectedPods.length >= 3
+                                  }
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-mono text-xs truncate">
+                                      {pod.pubkey || "N/A"}
+                                    </span>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {pod.version}
+                                    </Badge>
+                                  </div>
+                                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                    <span>Address: {pod.address}</span>
+                                    <span>
+                                      Storage: {formatBytes(pod.storageUsed)}
+                                    </span>
+                                    <span>
+                                      Uptime: {pod.uptime.toLocaleString()}s
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      {filteredPodsForCompare.length > 0 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          Showing {filteredPodsForCompare.length} of{" "}
+                          {allPods.length} pods
+                        </p>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+
+          {compareData && (
+            <Card className="mt-2">
+              <CardContent className="pt-4">
+                <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Pods</p>
+                    <p className="font-semibold">
+                      {compareData.statistics.totalPods}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Avg Committed</p>
+                    <p className="font-semibold">
+                      {formatBytes(compareData.statistics.avgStorageCommitted)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Avg Used</p>
+                    <p className="font-semibold">
+                      {formatBytes(compareData.statistics.avgStorageUsed)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Avg Uptime</p>
+                    <p className="font-semibold">
+                      {compareData.statistics.avgUptime.toLocaleString()}s
+                    </p>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Address</TableHead>
+                        <TableHead>Version</TableHead>
+                        <TableHead>Committed</TableHead>
+                        <TableHead>Used</TableHead>
+                        <TableHead>Uptime</TableHead>
+                        <TableHead>Last Seen</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {compareData.pods.map((pod) => (
+                        <TableRow
+                          key={pod.address}
+                          className="hover:bg-muted/50"
+                        >
+                          <TableCell className="font-mono text-xs">
+                            {pod.address}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {pod.current?.version ?? "-"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {pod.current
+                              ? formatBytes(pod.current.storageCommitted)
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {pod.current
+                              ? formatBytes(pod.current.storageUsed)
+                              : "-"}
+                          </TableCell>
+                          <TableCell>
+                            {pod.current ? `${pod.current.uptime}s` : "-"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {pod.current
+                              ? formatDate(pod.current.lastSeen)
+                              : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="mt-6">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">
+                      {compareMetric === "used" && "Storage Used Over Time"}
+                      {compareMetric === "committed" &&
+                        "Storage Committed Over Time"}
+                      {compareMetric === "percent" &&
+                        "Storage Usage Percentage Over Time"}
+                      {compareMetric === "uptime" && "Uptime Over Time"}
+                    </h3>
+                    <div className="flex gap-2 text-sm">
+                      {[
+                        { value: "used" as const, label: "Used" },
+                        { value: "committed" as const, label: "Committed" },
+                        { value: "percent" as const, label: "Usage %" },
+                        { value: "uptime" as const, label: "Uptime" },
+                      ].map((m) => (
+                        <Button
+                          key={m.value}
+                          variant={
+                            m.value === compareMetric ? "default" : "ghost"
+                          }
+                          size="sm"
+                          onClick={() => setCompareMetric(m.value)}
+                        >
+                          {m.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={mergeCompareHistory(
+                          compareData.pods,
+                          compareMetric
+                        )}
+                        margin={{ left: 10, right: 20 }}
+                      >
+                        <CartesianGrid
+                          stroke={getCSSColor("--border")}
+                          strokeDasharray="3 3"
+                        />
+                        <XAxis
+                          dataKey="timestamp"
+                          tick={{ fontSize: 12 }}
+                          hide
+                        />
+                        <YAxis
+                          tick={{ fontSize: 12, fill: "#94a3b8" }}
+                          width={70}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            fontSize: 12,
+                            backgroundColor: getCSSColor("--popover"),
+                            border: `1px solid ${getCSSColor("--border")}`,
+                            color: getCSSColor("--popover-foreground"),
+                          }}
+                          labelFormatter={(value) => formatDate(String(value))}
+                          formatter={(value, name) => {
+                            if (compareMetric === "percent") {
+                              return [`${Number(value).toFixed(2)}%`, name];
+                            } else if (compareMetric === "uptime") {
+                              return [
+                                `${Number(value).toLocaleString()}s`,
+                                name,
+                              ];
+                            } else {
+                              return [
+                                formatStorageFromTb(value as number | string),
+                                name,
+                              ];
+                            }
+                          }}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        {compareData.pods.map((pod, idx) => {
+                          const color =
+                            idx === 0
+                              ? chartColors.primary
+                              : idx === 1
+                                ? chartColors.secondary
+                                : chartColors.tertiary;
+                          return (
+                            <Line
+                              key={pod.address}
+                              type="monotone"
+                              dataKey={pod.address}
+                              stroke={color}
+                              strokeWidth={2}
+                              dot={false}
+                            />
+                          );
+                        })}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        <hr className="my-8" />
+
+        <section className="my-4">
           <div className="mb-4">
             <h2 className="text-lg font-semibold mb-1">All Pods</h2>
             <p className="text-sm text-muted-foreground">
@@ -1182,171 +1546,6 @@ export default function Home() {
             </CardContent>
           </Card>
         </section>
-
-        <section>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-semibold">Compare Pods</h2>
-              <p className="text-sm text-muted-foreground">
-                Comma-separated addresses or pubkeys (up to 10)
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <input
-                className="h-9 min-w-70 rounded-md border border-input bg-background px-3 text-sm focus:border-ring focus:outline-none"
-                placeholder="podA,podB,podC"
-                value={compareInput}
-                onChange={(e) => setCompareInput(e.target.value)}
-              />
-              <Button
-                size="sm"
-                onClick={handleCompare}
-                disabled={compareLoading}
-              >
-                {compareLoading ? "Comparing..." : "Compare"}
-              </Button>
-            </div>
-          </div>
-
-          {compareData && (
-            <Card>
-              <CardContent className="pt-4">
-                <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Pods</p>
-                    <p className="font-semibold">
-                      {compareData.statistics.totalPods}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Avg Committed</p>
-                    <p className="font-semibold">
-                      {formatBytes(compareData.statistics.avgStorageCommitted)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Avg Used</p>
-                    <p className="font-semibold">
-                      {formatBytes(compareData.statistics.avgStorageUsed)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Avg Uptime</p>
-                    <p className="font-semibold">
-                      {compareData.statistics.avgUptime.toLocaleString()}s
-                    </p>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Address</TableHead>
-                        <TableHead>Version</TableHead>
-                        <TableHead>Committed</TableHead>
-                        <TableHead>Used</TableHead>
-                        <TableHead>Uptime</TableHead>
-                        <TableHead>Last Seen</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {compareData.pods.map((pod) => (
-                        <TableRow
-                          key={pod.address}
-                          className="hover:bg-muted/50"
-                        >
-                          <TableCell className="font-mono text-xs">
-                            {pod.address}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">
-                              {pod.current?.version ?? "-"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {pod.current
-                              ? formatBytes(pod.current.storageCommitted)
-                              : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {pod.current
-                              ? formatBytes(pod.current.storageUsed)
-                              : "-"}
-                          </TableCell>
-                          <TableCell>
-                            {pod.current ? `${pod.current.uptime}s` : "-"}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
-                            {pod.current
-                              ? formatDate(pod.current.lastSeen)
-                              : "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                <div className="mt-6">
-                  <h3 className="mb-2 text-sm font-semibold">
-                    Storage Used (GB)
-                  </h3>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart
-                        data={mergeCompareHistory(compareData.pods)}
-                        margin={{ left: 10, right: 20 }}
-                      >
-                        <CartesianGrid
-                          stroke={getCSSColor("--border")}
-                          strokeDasharray="3 3"
-                        />
-                        <XAxis
-                          dataKey="timestamp"
-                          tick={{ fontSize: 12 }}
-                          hide
-                        />
-                        <YAxis
-                          tick={{ fontSize: 12, fill: "#94a3b8" }}
-                          width={70}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            fontSize: 12,
-                            backgroundColor: getCSSColor("--popover"),
-                            border: `1px solid ${getCSSColor("--border")}`,
-                            color: getCSSColor("--popover-foreground"),
-                          }}
-                          labelFormatter={(value) => formatDate(String(value))}
-                          formatter={(value, name) => [
-                            formatStorageFromTb(value as number | string),
-                            name,
-                          ]}
-                        />
-                        <Legend wrapperStyle={{ fontSize: 12 }} />
-                        {compareData.pods.map((pod, idx) => (
-                          <Line
-                            key={pod.address}
-                            type="monotone"
-                            dataKey={pod.address}
-                            stroke={
-                              idx === 0
-                                ? chartColors.primary
-                                : chartColors.tertiary
-                            }
-                            strokeWidth={idx === 0 ? 2 : 1.5}
-                            dot={false}
-                          />
-                        ))}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </section>
       </div>
     </div>
   );
@@ -1382,14 +1581,29 @@ function StatCard({
   );
 }
 
-function mergeCompareHistory(pods: ComparePod[]) {
+function mergeCompareHistory(
+  pods: ComparePod[],
+  metric: "used" | "committed" | "percent" | "uptime" = "used"
+) {
   const map = new Map<string, CompareChartRow>();
   pods.forEach((pod) => {
     pod.history.forEach((point) => {
       const key = point.timestamp;
       if (!map.has(key)) map.set(key, { timestamp: key });
       const entry = map.get(key)!;
-      entry[pod.address] = Number(point.storageUsed) / 1024 ** 4;
+
+      if (metric === "used") {
+        entry[pod.address] = Number(point.storageUsed) / 1024 ** 4;
+      } else if (metric === "committed") {
+        // Committed might not be in history, use current value
+        entry[pod.address] = pod.current
+          ? Number(pod.current.storageCommitted) / 1024 ** 4
+          : 0;
+      } else if (metric === "percent") {
+        entry[pod.address] = Number(point.storageUsagePercent);
+      } else if (metric === "uptime") {
+        entry[pod.address] = point.uptime;
+      }
     });
   });
   return Array.from(map.values()).sort((a, b) =>
