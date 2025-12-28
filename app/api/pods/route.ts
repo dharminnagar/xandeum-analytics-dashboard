@@ -3,6 +3,12 @@ import { XANDEUM_ENDPOINTS } from "@/config/endpoints";
 import { sendRequest } from "@/lib/sendRequest";
 import { Stats } from "@/types/nodes";
 
+// Use Node.js runtime
+export const runtime = "nodejs";
+
+// Cache for 20 seconds
+export const revalidate = 20;
+
 export async function POST() {
   for (const endpoint of XANDEUM_ENDPOINTS) {
     try {

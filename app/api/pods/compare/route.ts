@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import type { Pod, PodMetricsHistory } from "@prisma/client";
 
+export const runtime = "nodejs";
+export const revalidate = 45; // Cache for 45 seconds
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
