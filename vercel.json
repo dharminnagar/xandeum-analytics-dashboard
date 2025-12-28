@@ -4,6 +4,12 @@
   "framework": "nextjs",
   "regions": ["iad1"],
   "functions": {
+    "app/api/pods/snapshot/route.ts": {
+      "maxDuration": 120
+    },
+    "app/api/system/stats/snapshot/route.ts": {
+      "maxDuration": 120
+    },
     "app/api/**/*.ts": {
       "maxDuration": 10,
       "memory": 1024
