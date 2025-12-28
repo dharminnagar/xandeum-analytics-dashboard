@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { getPodRankings } from "@/lib/db/queries/stats";
+import { getPodRankings } from "@/lib/db/queries/stats-optimized";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 45; // Cache for 45 seconds
 
 export async function GET(request: Request) {
   try {
@@ -30,10 +34,17 @@ export async function GET(request: Request) {
 
     const rankings = await getPodRankings(metric, limit);
 
-    return NextResponse.json({
-      success: true,
-      data: rankings,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        data: rankings,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=45, stale-while-revalidate=90",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error fetching rankings:", error);
     return NextResponse.json(

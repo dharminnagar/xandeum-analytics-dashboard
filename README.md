@@ -262,12 +262,12 @@ rate = (actualDataPoints / expectedDataPoints) * 100;
 ## Screenshots
 
 ### Main Dashboard
+
 <img width="1437" height="794" alt="Screenshot 2025-12-26 at 1 29 39 AM" src="https://github.com/user-attachments/assets/94584cfc-00cc-4000-bb34-7a0c3ce1d34b" />
 
 ### Node Detail Page
+
 <img width="1439" height="795" alt="Screenshot 2025-12-26 at 1 30 32 AM" src="https://github.com/user-attachments/assets/72f08704-68db-4367-a2e5-0cd1e35f1e94" />
-
-
 
 ## Getting Started
 

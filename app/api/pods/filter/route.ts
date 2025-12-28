@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 30; // Cache for 30 seconds
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -14,99 +18,113 @@ export async function GET(request: Request) {
     const minUptime = searchParams.get("minUptime");
     const search = searchParams.get("search"); // Search by pubkey or address
 
-    // Build where clause
-    const where: Prisma.PodWhereInput = {};
+    // Build where clause for pods
+    const podWhere: Prisma.PodWhereInput = {};
 
     if (isPublic !== null) {
-      if (isPublic === "true") where.isPublic = true;
-      else if (isPublic === "false") where.isPublic = false;
+      if (isPublic === "true") podWhere.isPublic = true;
+      else if (isPublic === "false") podWhere.isPublic = false;
+    }
+
+    if (version) {
+      podWhere.version = version;
     }
 
     if (search) {
-      where.OR = [
+      podWhere.OR = [
         { pubkey: { contains: search, mode: "insensitive" } },
         { address: { contains: search, mode: "insensitive" } },
       ];
     }
 
-    // Get all pods with filters (no pagination on server)
-    const pods = await prisma.pod.findMany({
-      where,
-      include: {
-        metrics: {
-          orderBy: { timestamp: "desc" },
-          take: 1,
-        },
-      },
-      orderBy: { updatedAt: "desc" },
-    });
-
-    // Apply metric-based filters (after fetching latest metrics)
-    let filteredPods = pods.filter((p) => p.metrics.length > 0 && p.metrics[0]);
-
-    if (version) {
-      filteredPods = filteredPods.filter((p) => p.version === version);
-    }
-
-    if (minStorage) {
-      const minStorageBigInt = BigInt(minStorage);
-      filteredPods = filteredPods.filter(
-        (p) =>
-          p.metrics[0].storageCommitted !== null &&
-          p.metrics[0].storageCommitted >= minStorageBigInt
-      );
-    }
-
-    if (maxStorage) {
-      const maxStorageBigInt = BigInt(maxStorage);
-      filteredPods = filteredPods.filter(
-        (p) =>
-          p.metrics[0].storageCommitted !== null &&
-          p.metrics[0].storageCommitted <= maxStorageBigInt
-      );
-    }
-
-    if (minUptime) {
-      const minUptimeNum = parseInt(minUptime);
-      filteredPods = filteredPods.filter(
-        (p) =>
-          p.metrics[0].uptime !== null && p.metrics[0].uptime >= minUptimeNum
-      );
-    }
+    // Use raw SQL for better performance with latest metrics
+    const results = await prisma.$queryRaw<
+      Array<{
+        id: number;
+        pubkey: string | null;
+        address: string;
+        is_public: boolean | null;
+        rpc_port: number | null;
+        version: string;
+        storage_committed: bigint | null;
+        storage_used: bigint | null;
+        storage_usage_percent: number | null;
+        uptime: number | null;
+        timestamp: Date;
+      }>
+    >`
+      SELECT 
+        p.id,
+        p.pubkey,
+        p.address,
+        p.is_public,
+        p.rpc_port,
+        p.version,
+        m.storage_committed,
+        m.storage_used,
+        m.storage_usage_percent,
+        m.uptime,
+        m.timestamp
+      FROM pods p
+      INNER JOIN (
+        SELECT DISTINCT ON (pod_id)
+          pod_id,
+          storage_committed,
+          storage_used,
+          storage_usage_percent,
+          uptime,
+          timestamp
+        FROM pod_metrics_history
+        ORDER BY pod_id, timestamp DESC
+      ) m ON p.id = m.pod_id
+      WHERE 1=1
+        ${version ? Prisma.sql`AND p.version = ${version}` : Prisma.empty}
+        ${isPublic === "true" ? Prisma.sql`AND p.is_public = true` : Prisma.empty}
+        ${isPublic === "false" ? Prisma.sql`AND p.is_public = false` : Prisma.empty}
+        ${search ? Prisma.sql`AND (p.pubkey ILIKE ${"%" + search + "%"} OR p.address ILIKE ${"%" + search + "%"})` : Prisma.empty}
+        ${minStorage ? Prisma.sql`AND m.storage_committed >= ${BigInt(minStorage)}` : Prisma.empty}
+        ${maxStorage ? Prisma.sql`AND m.storage_committed <= ${BigInt(maxStorage)}` : Prisma.empty}
+        ${minUptime ? Prisma.sql`AND m.uptime >= ${parseInt(minUptime)}` : Prisma.empty}
+      ORDER BY p.updated_at DESC
+    `;
 
     // Format response
-    const results = filteredPods.map((pod) => {
-      const metric = pod.metrics[0];
-      return {
-        id: pod.id,
-        pubkey: pod.pubkey,
-        address: pod.address,
-        isPublic: pod.isPublic,
-        rpcPort: pod.rpcPort,
-        version: pod.version,
-        storageCommitted: metric.storageCommitted?.toString() || "0",
-        storageUsed: metric.storageUsed?.toString() || "0",
-        storageUsagePercent: metric.storageUsagePercent?.toString() || "0",
-        uptime: metric.uptime || 0,
-        lastSeen: metric.timestamp.toISOString(),
-      };
-    });
+    const pods = results.map((pod) => ({
+      id: pod.id,
+      pubkey: pod.pubkey,
+      address: pod.address,
+      isPublic: pod.is_public,
+      rpcPort: pod.rpc_port,
+      version: pod.version,
+      storageCommitted: pod.storage_committed?.toString() || "0",
+      storageUsed: pod.storage_used?.toString() || "0",
+      storageUsagePercent: pod.storage_usage_percent?.toString() || "0",
+      uptime: pod.uptime || 0,
+      lastSeen: pod.timestamp.toISOString(),
+    }));
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        pods: results,
-        total: results.length,
-        filters: {
-          isPublic,
-          version,
-          minStorage,
-          maxStorage,
-          minUptime,
-          search,
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          pods,
+          total: pods.length,
+          filters: {
+            isPublic,
+            version,
+            minStorage,
+            maxStorage,
+            minUptime,
+            search,
+          },
         },
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        },
+      }
+    );
   } catch (error) {
     console.error("Error filtering pods:", error);
     return NextResponse.json(

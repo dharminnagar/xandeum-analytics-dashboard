@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { Pod, PodMetricsHistory } from "@prisma/client";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const revalidate = 45; // Cache for 45 seconds
 
 export async function GET(request: Request) {

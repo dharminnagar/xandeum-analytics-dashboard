@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ipGeolocationService } from "@/lib/ip-geolocation.service";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const revalidate = 60; // Cache for 60 seconds
 
 /**
  * GET /api/geolocation
@@ -28,11 +28,18 @@ export async function GET() {
       lastSeen: loc.lastSeen,
     }));
 
-    return NextResponse.json({
-      locations: mapLocations,
-      totalNodes: result.totalNodes,
-      totalLocations: result.totalLocations,
-    });
+    return NextResponse.json(
+      {
+        locations: mapLocations,
+        totalNodes: result.totalNodes,
+        totalLocations: result.totalLocations,
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (error) {
     console.error("Failed to get all geolocations:", error);
 

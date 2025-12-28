@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getNetworkSummary } from "@/lib/db/queries/stats";
+import { getNetworkSummary } from "@/lib/db/queries/stats-optimized";
 
 // Use Node.js runtime for database operations
 export const runtime = "nodejs";

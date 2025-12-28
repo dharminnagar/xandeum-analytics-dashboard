@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
-import { getHistoricalTrends } from "@/lib/db/queries/stats";
+import { getHistoricalTrends } from "@/lib/db/queries/stats-optimized";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const revalidate = 60; // Cache for 1 minute
 
 export async function GET(request: Request) {

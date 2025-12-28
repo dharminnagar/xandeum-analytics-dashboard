@@ -254,12 +254,13 @@ export default function Home() {
     "used" | "committed" | "percent" | "uptime"
   >("used");
   const [loading, setLoading] = useState(true);
-  const [trendsLoading, setTrendsLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [trendsLoading, setTrendsLoading] = useState(true);
   const [rankingsLoading, setRankingsLoading] = useState(false);
   const [filterLoading, setFilterLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
   const [geoLocations, setGeoLocations] = useState<GlobalMapLocation[]>([]);
-  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(true);
   const [selectedLocation, setSelectedLocation] =
     useState<GlobalMapLocation | null>(null);
   const [isLive, setIsLive] = useState(true);
@@ -279,46 +280,87 @@ export default function Home() {
     [trends]
   );
 
-  // Polling for live data updates
+  // Polling for live data updates - load independently
   useEffect(() => {
-    const loadData = async () => {
+    const loadSummary = async () => {
       try {
-        const [summaryResp, geoResp] = await Promise.all([
-          fetchJSON<Summary>("/api/stats/summary"),
-          fetch("/api/geolocation", { cache: "no-store" }).then((res) =>
-            res.ok ? res.json() : null
-          ),
-        ]);
-
+        const summaryResp = await fetchJSON<Summary>("/api/stats/summary");
         if (summaryResp) {
           setSummary(summaryResp);
           setIsLive(true);
         } else {
           setIsLive(false);
         }
-
-        if (geoResp?.locations) {
-          setGeoLocations(geoResp.locations);
-        }
-
-        setLoading(false);
-        setGeoLoading(false);
+        setSummaryLoading(false);
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("Error fetching summary:", error);
         setIsLive(false);
-        setLoading(false);
-        setGeoLoading(false);
+        setSummaryLoading(false);
       }
     };
 
     // Initial load
-    loadData();
+    loadSummary();
 
-    // Poll every 7 seconds
-    const pollInterval = setInterval(loadData, 30000);
+    // Poll every 30 seconds
+    const pollInterval = setInterval(loadSummary, 30000);
 
     return () => clearInterval(pollInterval);
   }, []);
+
+  // Load geolocation data independently
+  useEffect(() => {
+    const loadGeo = async () => {
+      try {
+        const geoResp = await fetch("/api/geolocation", { cache: "no-store" });
+        if (geoResp.ok) {
+          const data = await geoResp.json();
+          if (data?.locations) {
+            setGeoLocations(data.locations);
+          }
+        }
+        setGeoLoading(false);
+      } catch (error) {
+        console.error("Error fetching geo:", error);
+        setGeoLoading(false);
+      }
+    };
+
+    loadGeo();
+    const pollInterval = setInterval(loadGeo, 30000);
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  // Load trends independently
+  useEffect(() => {
+    const loadTrends = async () => {
+      setTrendsLoading(true);
+      try {
+        const trendResp = await fetchJSON<TrendApiResponse | TrendPoint[]>(
+          `/api/stats/trends?period=${trendPeriod}`
+        );
+        if (trendResp) {
+          if (Array.isArray(trendResp)) {
+            setTrends(trendResp);
+          } else {
+            setTrends(
+              Array.isArray(trendResp.dataPoints) ? trendResp.dataPoints : []
+            );
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching trends:", error);
+      }
+      setTrendsLoading(false);
+    };
+
+    loadTrends();
+  }, [trendPeriod]);
+
+  // Update overall loading state - only wait for summary (critical data)
+  useEffect(() => {
+    setLoading(summaryLoading);
+  }, [summaryLoading]);
 
   // Format locations for WorldMap
   const mapLocations = useMemo(() => {
@@ -415,26 +457,6 @@ export default function Home() {
       (a, b) => b.nodeCount - a.nodeCount
     );
   }, [geoLocations, allPods]);
-
-  useEffect(() => {
-    const loadTrends = async () => {
-      setTrendsLoading(true);
-      const trendResp = await fetchJSON<TrendApiResponse | TrendPoint[]>(
-        `/api/stats/trends?period=${trendPeriod}`
-      );
-      if (trendResp) {
-        if (Array.isArray(trendResp)) {
-          setTrends(trendResp);
-        } else {
-          setTrends(
-            Array.isArray(trendResp.dataPoints) ? trendResp.dataPoints : []
-          );
-        }
-      }
-      setTrendsLoading(false);
-    };
-    loadTrends();
-  }, [trendPeriod]);
 
   useEffect(() => {
     const loadRankings = async () => {
@@ -546,14 +568,32 @@ export default function Home() {
     return (
       <div className="min-h-screen bg-background text-foreground">
         <div className="mx-auto max-w-7xl px-6 py-10">
+          {/* Show actual header instead of skeleton */}
           <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <Skeleton className="h-4 w-20 mb-2" />
-              <Skeleton className="h-9 w-64" />
+            <div className="flex items-center gap-3">
+              <Image
+                src="/xandeum-logo.png"
+                alt="Xandeum"
+                width={40}
+                height={40}
+                className="h-10 w-10"
+              />
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Xandeum
+                </p>
+                <h1 className="text-3xl font-semibold">Analytics Dashboard</h1>
+              </div>
             </div>
             <div className="flex items-center gap-4">
-              <Skeleton className="h-6 w-24" />
-              <Skeleton className="h-9 w-9 rounded-md" />
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span
+                  className="h-2 w-2 rounded-full bg-gray-400"
+                  aria-hidden
+                />
+                Loading...
+              </div>
+              <ModeToggle />
             </div>
           </header>
 
@@ -639,7 +679,22 @@ export default function Home() {
           </div>
         </header>
 
-        {summary && (
+        {/* Summary Cards - Load independently */}
+        {summaryLoading ? (
+          <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <Skeleton className="h-4 w-32" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-24 mb-2" />
+                  <Skeleton className="h-3 w-20" />
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+        ) : summary ? (
           <section className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="Total Pod Addresses"
@@ -664,10 +719,21 @@ export default function Home() {
               helperValue={formatPercent(summary.storageUtilization)}
             />
           </section>
-        )}
+        ) : null}
 
-        {/* Global Node Distribution */}
-        {!geoLoading && geoLocations.length > 0 && (
+        {/* Global Node Distribution - Load independently */}
+        {geoLoading ? (
+          <section className="mb-8">
+            <Card>
+              <CardHeader>
+                <Skeleton className="h-6 w-48" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-96 w-full" />
+              </CardContent>
+            </Card>
+          </section>
+        ) : geoLocations.length > 0 ? (
           <section className="mb-8">
             <Card>
               <CardHeader>
@@ -841,8 +907,9 @@ export default function Home() {
               </CardContent>
             </Card>
           </section>
-        )}
+        ) : null}
 
+        {/* Trends Section - Load independently */}
         <section className="mb-8">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>

@@ -10,6 +10,29 @@ const MIN_DELAY_BETWEEN_REQUESTS_MS = Math.ceil(
 
 export class IpGeolocationService {
   private requestTimestamps: number[] = []; // Track API calls for rate limiting
+  private geoCache: {
+    data: {
+      locations: Array<{
+        ip: string;
+        lat: number;
+        lon: number;
+        city: string | null;
+        region: string | null;
+        country: string | null;
+        countryCode: string | null;
+        isp: string | null;
+        org: string | null;
+        nodeCount: number;
+        pubkeys: string[];
+        firstSeen: Date;
+        lastSeen: Date;
+      }>;
+      totalNodes: number;
+      totalLocations: number;
+    };
+    timestamp: number;
+  } | null = null;
+  private readonly GEO_CACHE_TTL = 60000; // 60 seconds
 
   /**
    * Extract IP address from "IP:PORT" format
@@ -553,23 +576,38 @@ export class IpGeolocationService {
     totalNodes: number;
     totalLocations: number;
   }> {
+    // Check cache first
+    const now = Date.now();
+    if (this.geoCache && now - this.geoCache.timestamp < this.GEO_CACHE_TTL) {
+      return this.geoCache.data;
+    }
+
     try {
-      // Get all pods with their addresses
-      const pods = await prisma.pod.findMany({
-        select: {
-          pubkey: true,
-          address: true,
-          updatedAt: true,
-          createdAt: true,
-          metrics: {
-            orderBy: { timestamp: "desc" },
-            take: 1,
-            select: {
-              timestamp: true,
-            },
-          },
-        },
-      });
+      // Use optimized raw SQL query to avoid loading all metrics
+      const pods = await prisma.$queryRaw<
+        Array<{
+          pubkey: string | null;
+          address: string;
+          created_at: Date;
+          updated_at: Date;
+          last_metric_timestamp: Date | null;
+        }>
+      >`
+        SELECT 
+          p.pubkey,
+          p.address,
+          p.created_at,
+          p.updated_at,
+          m.timestamp as last_metric_timestamp
+        FROM pods p
+        LEFT JOIN LATERAL (
+          SELECT timestamp
+          FROM pod_metrics_history
+          WHERE pod_id = p.id
+          ORDER BY timestamp DESC
+          LIMIT 1
+        ) m ON true
+      `;
 
       // Get all geolocations
       const geolocations = await prisma.ipGeolocation.findMany();
@@ -602,13 +640,13 @@ export class IpGeolocationService {
         if (!geo || geo.status !== "success" || !geo.lat || !geo.lon) continue;
 
         const lastSeen =
-          pod.metrics[0]?.timestamp || pod.updatedAt || pod.createdAt;
+          pod.last_metric_timestamp || pod.updated_at || pod.created_at;
 
         const existing = locationMap.get(ip);
         if (existing) {
           if (pod.pubkey) existing.pubkeys.add(pod.pubkey);
-          if (pod.createdAt < existing.firstSeen)
-            existing.firstSeen = pod.createdAt;
+          if (pod.created_at < existing.firstSeen)
+            existing.firstSeen = pod.created_at;
           if (lastSeen > existing.lastSeen) existing.lastSeen = lastSeen;
         } else {
           locationMap.set(ip, {
@@ -622,7 +660,7 @@ export class IpGeolocationService {
             isp: geo.isp,
             org: geo.org,
             pubkeys: new Set(pod.pubkey ? [pod.pubkey] : []),
-            firstSeen: pod.createdAt,
+            firstSeen: pod.created_at,
             lastSeen: lastSeen,
           });
         }
@@ -636,11 +674,19 @@ export class IpGeolocationService {
 
       const totalNodes = new Set(locations.flatMap((l) => l.pubkeys)).size;
 
-      return {
+      const result = {
         locations,
         totalNodes,
         totalLocations: locations.length,
       };
+
+      // Cache the result
+      this.geoCache = {
+        data: result,
+        timestamp: now,
+      };
+
+      return result;
     } catch (error) {
       console.error("Failed to get all nodes with geolocation:", error);
       throw error;

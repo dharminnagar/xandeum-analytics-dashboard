@@ -67,6 +67,8 @@ model PodMetricsHistory {
   @@index([podId])
   @@index([timestamp])
   @@index([createdAt])
+  @@index([podId, timestamp(sort: Desc)]) // Composite index for latest metrics query
+  @@index([timestamp, podId]) // For time-based aggregations
   @@map("pod_metrics_history")
 }
 
