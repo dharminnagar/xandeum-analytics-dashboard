@@ -1,10 +1,11 @@
+import { APINodesWithStatsResponse, Stats } from "@/types/nodes";
 import * as undici from "undici";
 
 export async function sendRequest(
   endpoint: string,
   requestBody: string,
   timeoutMs: number = 5000
-) {
+): Promise<APINodesWithStatsResponse | null> {
   try {
     const { statusCode, body } = await undici.request(endpoint, {
       method: "POST",
@@ -16,18 +17,18 @@ export async function sendRequest(
       headersTimeout: timeoutMs,
     });
 
-    const data: unknown = await body.json();
+    const data: Stats = (await body.json()) as Stats;
 
     if (data) {
-      return JSON.stringify({
+      return {
         statusCode,
         stats: data,
-      });
+      };
     }
 
     return null;
   } catch (error) {
-    // Don't log every failed request - just return null
+    console.log(`✗ Request to ${endpoint} failed:`, error);
     return null;
   }
 }

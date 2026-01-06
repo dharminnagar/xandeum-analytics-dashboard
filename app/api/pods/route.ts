@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { XANDEUM_ENDPOINTS } from "@/config/endpoints";
 import { sendRequest } from "@/lib/sendRequest";
-import { Stats } from "@/types/nodes";
+import { APINodesWithStatsResponse, Stats } from "@/types/nodes";
 
 // Use Node.js runtime
 export const runtime = "nodejs";
@@ -10,7 +10,9 @@ export const runtime = "nodejs";
 export const revalidate = 20;
 
 export async function POST() {
-  for (const endpoint of XANDEUM_ENDPOINTS) {
+  for (let i = 0; i < XANDEUM_ENDPOINTS.length; i++) {
+    const endpoint = XANDEUM_ENDPOINTS[i];
+
     try {
       const request = {
         jsonrpc: "2.0",
@@ -18,21 +20,17 @@ export async function POST() {
         params: [],
         id: 1,
       };
-      const response: string | null = await sendRequest(
-        endpoint,
+      const response: APINodesWithStatsResponse | null = await sendRequest(
+        `${endpoint}/rpc`,
         JSON.stringify(request)
       );
 
       if (response) {
-        const data: Stats = JSON.parse(response);
+        const data: APINodesWithStatsResponse = response;
         return NextResponse.json(data);
       }
     } catch (e) {
-      console.log({
-        error: "SERVER FAILED",
-        msg: e,
-        endpoint: endpoint,
-      });
+      // Silent fail, continue to next endpoint
     }
   }
 
