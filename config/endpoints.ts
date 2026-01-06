@@ -1,9 +1,9 @@
 // Xandeum pRPC endpoints (prioritized based on testing)
 export const XANDEUM_ENDPOINTS = [
   "http://173.212.207.32:6000",
+  "http://45.84.138.15:6000",
   "http://45.151.122.77:6000",
   "http://144.126.137.111:6000",
-  "http://45.84.138.15:6000",
   "http://84.21.171.111:6000",
   "http://173.249.54.191:6000",
   "http://173.249.59.66:6000",
