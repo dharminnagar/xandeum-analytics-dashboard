@@ -28,7 +28,7 @@ export async function POST() {
         return NextResponse.json(data);
       }
     } catch (e) {
-      return NextResponse.json({
+      console.log({
         error: "SERVER FAILED",
         msg: e,
         endpoint: endpoint,
