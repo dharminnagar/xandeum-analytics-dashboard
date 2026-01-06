@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { XANDEUM_ENDPOINTS } from "@/config/endpoints";
 import { sendRequest } from "@/lib/sendRequest";
-import { PodResponse } from "@/types/stats";
+import { APIStatsResponse } from "@/types/stats";
 
 export async function POST() {
   for (const endpoint of XANDEUM_ENDPOINTS) {
@@ -18,7 +18,7 @@ export async function POST() {
       );
 
       if (response) {
-        const data: PodResponse = JSON.parse(response);
+        const data: APIStatsResponse = JSON.parse(response);
         return NextResponse.json(data);
       }
     } catch (e) {

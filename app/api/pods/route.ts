@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { XANDEUM_ENDPOINTS } from "@/config/endpoints";
 import { sendRequest } from "@/lib/sendRequest";
-import { APINodesWithStatsResponse, Stats } from "@/types/nodes";
+import { APINodesWithStatsResponse } from "@/types/nodes";
 
 // Use Node.js runtime
 export const runtime = "nodejs";
@@ -20,15 +20,16 @@ export async function POST() {
         params: [],
         id: 1,
       };
-      const response: APINodesWithStatsResponse | null = await sendRequest(
+      const response: string | null = await sendRequest(
         `${endpoint}/rpc`,
         JSON.stringify(request)
       );
 
       if (response) {
-        const data: APINodesWithStatsResponse = response;
+        const data: APINodesWithStatsResponse = JSON.parse(response);
         return NextResponse.json(data);
       }
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
     } catch (e) {
       // Silent fail, continue to next endpoint
     }
